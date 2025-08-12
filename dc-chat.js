@@ -102,7 +102,7 @@
     const addHTML=(html)=>{ history.push({role:"assistant",html}); save(); render(); };
 
     // Components
-  function addCapture(){
+function addCapture(){
   if (document.getElementById("dc-capture")) return;
   const id="dc-capture";
   const html = bubble("assistant", `
@@ -117,7 +117,9 @@
         <input type="text"  name="subject" placeholder="Subject"
                style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
         <textarea name="note" rows="2" placeholder="Message"
-                  style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5"></textarea>
+          style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
+                 background:rgba(12,17,19,.85);color:#EAF2F5;line-height:1.3;
+                 height:84px;min-height:64px;max-height:160px;resize:vertical;"></textarea>
       </div>
       <div style="display:flex;gap:8px">
         <button type="submit" class="dc-btn">Submit Info</button>
@@ -127,14 +129,13 @@
   `);
   addHTML(html);
 
+  // Submit: post to Google Forms via hidden form (reliable), fallback to localStorage
   setTimeout(()=>{
     const f=document.getElementById(id);
     if(!f) return;
 
     f.addEventListener("submit", (e)=>{
       e.preventDefault();
-
-      // Collect values
       const fd = new FormData(f);
       const name    = (fd.get("name")    || "").toString().trim();
       const email   = (fd.get("email")   || "").toString().trim();
@@ -142,60 +143,37 @@
       const subject = (fd.get("subject") || "").toString().trim();
       const note    = (fd.get("note")    || "").toString().trim();
 
-      // Build a hidden <form> that posts to Google Forms (most reliable)
-      let sent = false;
-      try {
-        // You already defined GOOGLE_FORM earlier in the script
-        const targetName = "dc-gform-target";
-        let iframe = document.getElementById(targetName);
-        if (!iframe){
-          iframe = document.createElement("iframe");
-          iframe.id = targetName;
-          iframe.name = targetName;
-          iframe.style.display = "none";
+      let sent=false;
+      try{
+        const targetName="dc-gform-target";
+        let iframe=document.getElementById(targetName);
+        if(!iframe){
+          iframe=document.createElement("iframe");
+          iframe.id=targetName; iframe.name=targetName; iframe.style.display="none";
           document.body.appendChild(iframe);
         }
-
-        const gf = document.createElement("form");
-        gf.action = GOOGLE_FORM.action;
-        gf.method = "POST";
-        gf.target = targetName;
-        gf.style.display = "none";
-
-        const set = (n,v)=>{ const i=document.createElement("input"); i.type="hidden"; i.name=n; i.value=v; gf.appendChild(i); };
-
-        set(GOOGLE_FORM.fields.name,    name);
-        set(GOOGLE_FORM.fields.email,   email);
-        set(GOOGLE_FORM.fields.phone,   phone);
+        const gf=document.createElement("form");
+        gf.action=GOOGLE_FORM.action; gf.method="POST"; gf.target=targetName; gf.style.display="none";
+        const set=(n,v)=>{ const i=document.createElement("input"); i.type="hidden"; i.name=n; i.value=v; gf.appendChild(i); };
+        set(GOOGLE_FORM.fields.name, name);
+        set(GOOGLE_FORM.fields.email, email);
+        set(GOOGLE_FORM.fields.phone, phone);
         set(GOOGLE_FORM.fields.subject, subject);
         set(GOOGLE_FORM.fields.message, note);
+        set("fvv","1"); set("pageHistory","0"); set("fbzx", String(Date.now()));
+        document.body.appendChild(gf); gf.submit(); sent=true;
+        setTimeout(()=>{ try{ gf.remove(); }catch{} },1500);
+      }catch{}
 
-        // harmless extras
-        set("fvv","1");
-        set("pageHistory","0");
-        set("fbzx", String(Date.now()));
-        // set("submit","Submit"); // optional
-
-        document.body.appendChild(gf);
-        gf.submit();
-        sent = true;
-
-        // clean up after a moment
-        setTimeout(()=>{ try{ gf.remove(); }catch(_){} }, 1500);
-      } catch(_) {}
-
-      // Fallback: stash locally if something goes wrong
-      if (!sent){
+      if(!sent){
         try{
-          const stash = JSON.parse(localStorage.getItem("dc_leads") || "[]");
-          stash.push({ ts:Date.now(), name, email, phone, subject, note, page: location.href });
+          const stash=JSON.parse(localStorage.getItem("dc_leads")||"[]");
+          stash.push({ts:Date.now(),name,email,phone,subject,note,page:location.href});
           localStorage.setItem("dc_leads", JSON.stringify(stash));
-        }catch(_){}
+        }catch{}
       }
 
-      add("assistant", sent
-        ? "Thanks — submitted! We’ll be in touch soon."
-        : "Thanks — saved locally. We’ll reach out soon.");
+      add("assistant", sent ? "Thanks — submitted! We’ll be in touch soon." : "Thanks — saved locally. We’ll reach out soon.");
       showToast(sent ? "Submitted" : "Saved");
       f.reset();
     });
@@ -344,45 +322,49 @@ function reply(qRaw){
     else { add("assistant","Hi. Ask a quick question or say contact if you want to reach a consultant."); }
 
     function hasUserInput(hist){ return (hist||[]).some(m=>m.role==="user"); }
-    function showWelcomePrompt(){
-      const old=document.getElementById("dc-welcome"); if(old) old.remove();
-      const hasUser=hasUserInput(history);
-      const wrap=document.createElement("div"); wrap.id="dc-welcome";
+   function showWelcomePrompt(){
+  const existing=document.getElementById("dc-welcome"); if(existing) existing.remove();
 
-      const msg = hasUser ? "Continue where we left off?" : "Are you looking for any help? I may be able to assist.";
-      const actions = hasUser
-        ? `<div class="dc-actions">
-             <button class="dc-btn" data-act="continue">Continue</button>
-             <button class="dc-btn secondary" data-act="clear">Clear</button>
-             <button class="dc-btn secondary" data-act="close">No</button>
-           </div>`
-        : `<div class="dc-actions">
-             <button class="dc-btn" data-act="yes">Yes</button>
-             <button class="dc-btn secondary" data-act="clear">Clear</button>
-             <button class="dc-btn secondary" data-act="close">No</button>
-           </div>`;
+  const hasUser=(history||[]).some(m=>m.role==="user");
+  const msg = hasUser ? "Continue where we left off?" : "Are you looking for any help? I may be able to assist.";
 
-      wrap.innerHTML = bubble("assistant", `<div>${msg}</div>${actions}`);
-      log.appendChild(wrap.firstChild); log.scrollTop=log.scrollHeight;
+  const actions = hasUser
+    ? `<div class="dc-actions">
+         <button class="dc-btn" type="button" data-act="continue">Continue</button>
+         <button class="dc-btn secondary" type="button" data-act="clear">Clear</button>
+         <button class="dc-btn secondary" type="button" data-act="close">No</button>
+       </div>`
+    : `<div class="dc-actions">
+         <button class="dc-btn" type="button" data-act="yes">Yes</button>
+         <button class="dc-btn secondary" type="button" data-act="clear">Clear</button>
+         <button class="dc-btn secondary" type="button" data-act="close">No</button>
+       </div>`;
 
-      log.querySelectorAll('[data-act]').forEach(b=>{
-        b.addEventListener('click', (e)=>{
-          const act=e.currentTarget.getAttribute('data-act');
-          if (act==="continue"){
-            const p=document.getElementById("dc-welcome"); if(p) p.remove();
-          } else if (act==="clear"){
-            history=[]; save(); render();
-            add("assistant","Great. Starting fresh. Ask a quick question or say contact if you want to reach a consultant.");
-            showWelcomePrompt();
-          } else if (act==="yes"){
-            const p=document.getElementById("dc-welcome"); if(p) p.remove();
-            add("assistant","Happy to help. Is this about QMS, Regulatory, or AI? I can also connect you to a consultant.");
-          } else if (act==="close"){
-            close();
-          }
-        });
-      });
-    }
+  const tmp=document.createElement("div");
+  tmp.innerHTML = bubble("assistant", `<div>${msg}</div>${actions}`);
+  const node = tmp.firstElementChild;
+  node.id = "dc-welcome";
+  log.appendChild(node);
+  log.scrollTop = log.scrollHeight;
+
+  node.querySelectorAll("[data-act]").forEach(b=>{
+    b.addEventListener("click", (e)=>{
+      const act=e.currentTarget.getAttribute("data-act");
+      if (act==="continue"){
+        node.remove(); // now actually removes the visible prompt
+      } else if (act==="clear"){
+        history=[]; save(); render();
+        add("assistant","Great. Starting fresh. Ask a quick question or say contact if you want to reach a consultant.");
+        showWelcomePrompt();
+      } else if (act==="yes"){
+        node.remove();
+        add("assistant","Happy to help. Is this about QMS, Regulatory, or AI? I can also connect you to a consultant.");
+      } else if (act==="close"){
+        close();
+      }
+    });
+  });
+}
 
     // Form submit
     form.addEventListener("submit", (e)=>{
