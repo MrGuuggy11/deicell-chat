@@ -16,6 +16,19 @@
     const FOUNDER_NAME="Nathan Jones, Founder & Principal Consultant";
     const LS={hist:"dc_chat_hist_v14"};
 
+    // --- Google Forms integration ---
+    const GOOGLE_FORM = {
+      action: "https://docs.google.com/forms/d/e/1FAIpQLSd-pxa0n6C1rZC0AExP8bc5VK-O6qDZWOyhHdqmy1ODVGUnNQ/formResponse",
+      fields: {
+        name:    "entry.511200028",   // Name
+        email:   "entry.1678436901",  // Email
+        phone:   "entry.1195889528",  // Phone Number
+        subject: "entry.205543377",   // Subject
+        message: "entry.1595874015"   // Message
+      }
+    };
+    // --------------------------------
+
     // Ensure root exists (so Carrd embed can be tiny)
     let root=document.getElementById("dc-chat-root");
     if(!root){
@@ -95,50 +108,93 @@
       const html = bubble("assistant", `
         <form id="${id}" style="display:grid;gap:6px;margin-top:6px">
           <div style="display:grid;gap:6px">
-            <input type="text" name="name" placeholder="Your name" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="email" name="email" placeholder="Email" value="" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <textarea name="note" rows="2" placeholder="Brief note" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5"></textarea>
+            <input type="text"  name="name"    placeholder="Your name" required
+                   style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
+            <input type="email" name="email"   placeholder="Email" required
+                   style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
+            <input type="tel"   name="phone"   placeholder="Phone (optional)"
+                   style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
+            <input type="text"  name="subject" placeholder="Subject"
+                   style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
+            <textarea name="note" rows="2" placeholder="Message"
+                      style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5"></textarea>
           </div>
           <div style="display:flex;gap:8px">
             <button type="submit" class="dc-btn">Submit Info</button>
             <a href="mailto:${COMPANY_EMAIL}" class="dc-btn secondary">Email Us</a>
           </div>
         </form>
-      `); // fixed: closes bubble(...) correctly
+      `);
       addHTML(html);
+
+      // Wire up submit
       setTimeout(()=>{
         const f=document.getElementById(id);
         if(!f) return;
-        f.addEventListener("submit", (e)=>{
+
+        f.addEventListener("submit", async (e)=>{
           e.preventDefault();
-          const fd=new FormData(f);
-          const payload={
-            ts:Date.now(),
-            name:(fd.get("name")||"").toString().trim(),
-            email:(fd.get("email")||"").toString().trim(),
-            note:(fd.get("note")||"").toString().trim()
-          };
-          try {
-            const prev=JSON.parse(localStorage.getItem("dc_leads")||"[]");
-            prev.push(payload);
-            localStorage.setItem("dc_leads", JSON.stringify(prev));
-          } catch(e){}
-          add("assistant","Thanks. We saved your info. We will reach out soon.");
-          showToast("Saved");
+
+          const fd = new FormData(f);
+          const name    = (fd.get("name")    || "").toString().trim();
+          const email   = (fd.get("email")   || "").toString().trim();
+          const phone   = (fd.get("phone")   || "").toString().trim();
+          const subject = (fd.get("subject") || "").toString().trim();
+          const note    = (fd.get("note")    || "").toString().trim();
+
+          let sent = false;
+
+          // --- send to Google Forms ---
+          if (GOOGLE_FORM.action){
+            try{
+              const params = new URLSearchParams();
+              params.append(GOOGLE_FORM.fields.name,    name);
+              params.append(GOOGLE_FORM.fields.email,   email);
+              params.append(GOOGLE_FORM.fields.phone,   phone);
+              params.append(GOOGLE_FORM.fields.subject, subject);
+              params.append(GOOGLE_FORM.fields.message, note);
+
+              // harmless extras some forms include
+              params.append("fvv","1");
+              params.append("pageHistory","0");
+              params.append("fbzx", String(Date.now()));
+
+              await fetch(GOOGLE_FORM.action, {
+                method: "POST",
+                mode: "no-cors", // can't read response, but Google records it
+                body: params
+              });
+              sent = true;
+            } catch(_) {}
+          }
+          // --------------------------------
+
+          // Fallback: stash locally if not sent
+          if(!sent){
+            try{
+              const stash = JSON.parse(localStorage.getItem("dc_leads") || "[]");
+              stash.push({ ts:Date.now(), name, email, phone, subject, note, page: location.href });
+              localStorage.setItem("dc_leads", JSON.stringify(stash));
+            }catch(_){}
+          }
+
+          add("assistant", sent
+            ? "Thanks — submitted! We’ll be in touch soon."
+            : "Thanks — saved locally. We’ll reach out soon.");
+          showToast(sent ? "Submitted" : "Saved");
+          f.reset();
         });
       },0);
     }
 
     function addCTA(){
-  const html = bubble("assistant", `
-    <div class="dc-actions">
-      <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener">Book a consult</a>
-      <a class="dc-btn secondary" href="${CONSULT_URL}" target="_blank" rel="noopener">Contact form</a>
-    </div>
-  `);
-  addHTML(html);
-  // (No clipboard handler anymore)
-}
+      const html = bubble("assistant", `
+        <div class="dc-actions">
+          <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener">Book a consult</a>
+        </div>
+      `);
+      addHTML(html);
+    }
 
     function addContact(){
       const html=bubble("assistant", `
