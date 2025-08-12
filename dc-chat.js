@@ -61,7 +61,7 @@
     panel.innerHTML=`
       <div id="dc-header">
         <div style="display:flex;align-items:center;gap:8px">
-          <img src="${LOGO_URL}" alt="DeiCell"><span>DeiCell Assistant</span>
+          <img src="${LOGO_URL}" alt="DeiCell"><span>Mendel AI</span>
         </div>
         <button id="dc-close" aria-label="Close">&times;</button>
       </div>
@@ -319,7 +319,7 @@ function reply(qRaw){
 
     // Initial prompt
     if (history.length){ render(); }
-    else { add("assistant","Hi. Ask a quick question or say contact if you want to reach a consultant."); }
+    else { add("assistant",`Hi — I'm ${BOT_NAME}. Ask a quick question or say contact if you want to reach a consultant.`); }
 
     function hasUserInput(hist){ return (hist||[]).some(m=>m.role==="user"); }
    function showWelcomePrompt(){
