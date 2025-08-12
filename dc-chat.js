@@ -7,6 +7,7 @@
     } catch(e){}
 
     // Config
+    const ASSISTANT_NAME = "Mendel AI";
     const LOGO_URL = "https://deicell.com/assets/images/image02.png?v=66696e40";
     const CONSULT_URL = "https://deicell.com/#contact";
     const COMPANY_EMAIL = "NJONES@DEICELL.COM";
@@ -15,18 +16,17 @@
     const FOUNDER_NAME = "Nathan Jones, Founder & Principal Consultant";
     const LS = { hist: "dc_chat_hist_v14" };
 
-    // --- Google Forms integration ---
+    // Google Forms integration
     const GOOGLE_FORM = {
       action: "https://docs.google.com/forms/d/e/1FAIpQLSd-pxa0n6C1rZC0AExP8bc5VK-O6qDZWOyhHdqmy1ODVGUnNQ/formResponse",
       fields: {
-        name:    "entry.511200028",   // Name
-        email:   "entry.1678436901",  // Email
-        phone:   "entry.1195889528",  // Phone Number
-        subject: "entry.205543377",   // Subject
-        message: "entry.1595874015"   // Message
+        name:    "entry.511200028",
+        email:   "entry.1678436901",
+        phone:   "entry.1195889528",
+        subject: "entry.205543377",
+        message: "entry.1595874015"
       }
     };
-    // --------------------------------
 
     // Ensure root exists (so Carrd embed can be tiny)
     let root = document.getElementById("dc-chat-root");
@@ -61,13 +61,13 @@
     panel.innerHTML = `
       <div id="dc-header">
         <div style="display:flex;align-items:center;gap:8px">
-          <img src="${LOGO_URL}" alt="DeiCell"><span>DeiCell Assistant</span>
+          <img src="${LOGO_URL}" alt="DeiCell"><span>${ASSISTANT_NAME}</span>
         </div>
         <button id="dc-close" aria-label="Close">&times;</button>
       </div>
       <div id="dc-log" class="dc-watermark"></div>
       <form id="dc-form" autocomplete="off">
-        <input id="dc-input" type="text" placeholder="Ask about QMS, regulatory, or AI..." autocomplete="off">
+        <input id="dc-input" type="text" placeholder="Ask about QMS, Regulatory, or AI..." autocomplete="off">
         <button id="dc-send" type="submit">Send</button>
       </form>
       <div id="dc-toast">Copied!</div>
@@ -83,6 +83,7 @@
     // Open/close
     const setOpen = (open)=>{
       panel.style.display = open ? "flex" : "none";
+      try { root.setAttribute("aria-hidden", open ? "false" : "true"); } catch(e){}
       if (open) setTimeout(()=>{ try{ input && input.focus(); }catch(e){} }, 0);
     };
     const toggle = ()=> setOpen(panel.style.display !== "flex");
@@ -244,7 +245,7 @@
 
       if (emailMatch){
         if (!document.getElementById("dc-capture")) addCapture();
-        return { text: `Thanks, noted ${emailMatch[0]}. Add a note and hit Submit Info if you like.`, showCTA: true, showContact: true };
+        return { text: `Thanks, noted ${emailMatch[0]}. If you like, add a note and select Submit Info.`, showCTA: true, showContact: true };
       }
       if (askWhoNJ){ lastTopic = "nathan"; return { text: KB.nathan, showContact: true }; }
       if (askDei || has(q,["what do you do","tell me more about your company"])){
@@ -295,7 +296,7 @@
         if (lastTopic === "ai")        return { text: KB.ai_intro, capture: true, showCTA: true };
       }
 
-      // INTEGRATED CTA VERSION
+      // Integrated CTA version
       if (isHelp){
         if (!document.getElementById("dc-capture")) addCapture();
         return {
@@ -313,16 +314,15 @@
           `,
           capture: true,
           showContact: true
-          // no showCTA here — the button is already in this same bubble
         };
       }
 
-      return { text: "Happy to help. Is this about QMS, Regulatory, or AI? I can also connect you to a consultant.", capture: true };
+      return { text: "Happy to help! Is this about QMS, Regulatory, or AI? I can also connect you with a consultant.", capture: true };
     }
 
     // Initial prompt
     if (history.length){ render(); }
-    else { add("assistant","Hi. Ask a quick question or say contact if you want to reach a consultant."); }
+    else { add("assistant",`Hi, I'm ${ASSISTANT_NAME}. What can I help with today? Ask about QMS, Regulatory, or AI. You can also say contact to reach a consultant.`); }
 
     // Submit handler for chat
     if (form){
@@ -345,18 +345,18 @@
       const existing = document.getElementById("dc-welcome"); if(existing) existing.remove();
 
       const hasUser = (history || []).some(m => m.role === "user");
-      const msg = hasUser ? "Continue where we left off?" : "Are you looking for any help? I may be able to assist.";
+      const msg = hasUser ? "Want to continue where we left off?" : "Looking for help with QMS, Regulatory, or AI?";
 
       const actions = hasUser
         ? `<div class="dc-actions">
              <button class="dc-btn" type="button" data-act="continue">Continue</button>
              <button class="dc-btn secondary" type="button" data-act="clear">Clear</button>
-             <button class="dc-btn secondary" type="button" data-act="close">No</button>
+             <button class="dc-btn secondary" type="button" data-act="close">Close</button>
            </div>`
         : `<div class="dc-actions">
              <button class="dc-btn" type="button" data-act="yes">Yes</button>
              <button class="dc-btn secondary" type="button" data-act="clear">Clear</button>
-             <button class="dc-btn secondary" type="button" data-act="close">No</button>
+             <button class="dc-btn secondary" type="button" data-act="close">Close</button>
            </div>`;
 
       const tmp = document.createElement("div");
@@ -373,11 +373,11 @@
             node.remove();
           } else if (act === "clear"){
             history = []; save(); render();
-            add("assistant","Great. Starting fresh. Ask a quick question or say contact if you want to reach a consultant.");
+            add("assistant",`Great. Starting fresh. I'm ${ASSISTANT_NAME}. Ask a quick question or say contact if you want to reach a consultant.`);
             showWelcomePrompt();
           } else if (act === "yes"){
             node.remove();
-            add("assistant","Happy to help. Is this about QMS, Regulatory, or AI? I can also connect you to a consultant.");
+            add("assistant","Happy to help! Is this about QMS, Regulatory, or AI? I can also connect you with a consultant.");
           } else if (act === "close"){
             close();
           }
@@ -385,7 +385,8 @@
       });
     }
 
-    // Optional welcome prompt on open
+    // Open chat on startup and show welcome prompt
+    setOpen(true);
     setTimeout(showWelcomePrompt, 0);
   }
 
