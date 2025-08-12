@@ -92,7 +92,7 @@
     function addCapture(){
       if (document.getElementById("dc-capture")) return;
       const id="dc-capture";
-      const html=bubble("assistant", `
+      const html = bubble("assistant", `
         <form id="${id}" style="display:grid;gap:6px;margin-top:6px">
           <div style="display:grid;gap:6px">
             <input type="text" name="name" placeholder="Your name" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
@@ -104,8 +104,7 @@
             <a href="mailto:${COMPANY_EMAIL}" class="dc-btn secondary">Email Us</a>
           </div>
         </form>
-      `;
-      );
+      `); // <- fixed: single closing );
       addHTML(html);
       setTimeout(()=>{
         const f=document.getElementById(id);
