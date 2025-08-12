@@ -185,17 +185,20 @@
       }, 0);
     }
 
-    function addCTA(){
-      const html = bubble("assistant", `
-        <div class="dc-actions">
-          <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener"
-             style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap;line-height:1;min-height:40px;padding:8px 14px;">
-            Book a consult
-          </a>
-        </div>
-      `);
-      addHTML(html);
-    }
+function addCTA(){
+  const html = bubble("assistant", `
+    <div class="dc-actions">
+      <a class="dc-btn"
+         href="${CONSULT_URL}"
+         target="_blank"
+         rel="noopener"
+         style="display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:40px;padding:0 14px;max-width:100%;text-decoration:none;white-space:nowrap;line-height:1;overflow:hidden;text-overflow:ellipsis;">
+        Book a consult
+      </a>
+    </div>
+  `);
+  addHTML(html);
+}
 
     function addContact(){
       const html = bubble("assistant", `
