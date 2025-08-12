@@ -203,119 +203,141 @@
 }
 
 function addCTA(){
+  // still available for other replies that call showCTA
   const html = bubble("assistant", `
     <div class="dc-actions">
       <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener"
-         style="display:inline-block;text-decoration:none;">Book a consult</a>
+         style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap;line-height:1;min-height:40px;padding:8px 14px;">
+        Book a consult
+      </a>
     </div>
   `);
   addHTML(html);
 }
 
-    function addContact(){
-      const html=bubble("assistant", `
+function addContact(){
+  const html=bubble("assistant", `
+    <div>
+      <div style="margin-bottom:6px"><strong>Contact</strong></div>
+      <div>Email: <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a></div>
+      <div>Company: <a href="${COMPANY_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a></div>
+      <div>${FOUNDER_NAME}: <a href="${FOUNDER_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a></div>
+    </div>
+  `);
+  addHTML(html);
+}
+
+// Knowledge and routing
+let lastTopic=null, regCtx={cls:null,region:null};
+const KB={
+  nathan:`Nathan Jones is a regulatory and quality systems consultant and the Founder of DeiCell Systems. He helps biotech and medtech teams build inspection ready operations across GMP, ISO 13485, and ICH, bridging bench biology with scalable compliance from development through postmarket. Hands on with batch review, CAPA, labeling compliance, and USP <61>/<62>/<71> microbiology. Completing an MBA at Xavier and pursuing RAC through RAPS.`,
+  deicell:`DeiCell Systems helps biotech and medtech innovators scale with precision. We provide regulatory, quality, and strategic consulting grounded in systems thinking and scientific rigor, from GxP compliant frameworks to microbiology informed compliance strategies, for early and growth stage teams.`,
+  value:`Why DeiCell: risk based, right sized systems; traceable, audit ready documentation; microbiology aware controls; and pragmatic coaching so teams stay fast without breaking compliance.`,
+  qms_intro:`QMS: right sized ISO 13485 architecture, doc control, training, CAPA, risk, change control, plus audit prep and stage appropriate SOPs.`,
+  qms_startup:`For startups: lean, tiered QMS that scales with funding and maturity. We emphasize essentials like risk, doc control, and training, and deepen as you approach clinical or market milestones.`,
+  reg_intro:`Regulatory: pathway and testing strategy, Pre Sub planning, submission authoring such as 510(k), De Novo, PMA, and labeling reviews aligned to FDA, ISO, and MDR.`,
+  reg_class3_us:`US Class III: PMA strategy, Pre Sub questions, clinical evidence planning, design dossier structure, biocompatibility and statistics pointers, labeling checks, plus inspection readiness and traceability.`,
+  ai_intro:`AI and ML: data governance, validation planning, model risk checks, and evidence packages. We pair regulatory insight with NLP assisted review for literature, PMS, and training datasets.`
+};
+
+function reply(qRaw){
+  const q=(qRaw||"").toLowerCase().trim();
+  const has=(s,arr)=>arr.some(k=>s.includes(k));
+  const emailMatch = qRaw && qRaw.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+
+  const isHelp    = has(q,["help","support","connect","agent","human","talk","speak","contact","reach"]);
+  const askWhoNJ  = has(q,["who is nathan","nathan jones","founder"]) || q==="nathan";
+  const askDei    = has(q,["what is deicell","about deicell","the company","tell me more about deicell","what is your company","more about deicell"]);
+  const askWhy    = has(q,["why choose","why deicell","why should i choose"]);
+  const askEmail  = has(q,["email","where do i add my email","submit my email","add my email"]);
+  const askLinked = has(q,["linkedin"]);
+
+  const qms       = has(q,["qms","iso","quality","document","sop","capa","risk","training"]);
+  const reg       = has(q,["regulatory","fda","510k","510(k)","de novo","denovo","pma","submission","label"]);
+  const ai        = has(q,["ai","ml","validation","bias","dataset","governance"]);
+  const startup   = has(q,["startup","start up","early stage"]);
+  const cls2      = has(q,["class 2","class ii"]);
+  const cls3      = has(q,["class 3","class iii"]);
+  const inUS      = has(q,[" us"," u.s"," usa"," united states"," fda"]) || q==="us";
+  const inEU      = has(q,[" eu"," europe"," european union"," mdr"]);
+
+  if (emailMatch){
+    if (!document.getElementById("dc-capture")) addCapture();
+    return { text:`Thanks, noted ${emailMatch[0]}. Add a note and hit Submit Info if you like.`, showCTA:true, showContact:true };
+  }
+  if (askWhoNJ){ lastTopic="nathan"; return { text:KB.nathan, showContact:true }; }
+  if (askDei || has(q,["what do you do","tell me more about your company"])){
+    lastTopic="deicell"; return { text:`${KB.deicell}\n\n${KB.value}`, showCTA:true, showContact:true };
+  }
+  if (askWhy){ lastTopic="deicell"; return { text:KB.value, showCTA:true, showContact:true }; }
+  if (askEmail){
+    if (!document.getElementById("dc-capture")) addCapture();
+    return { html:`Use the form above or email <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a>.`, showCTA:true };
+  }
+  if (askLinked){
+    return { html:`Company: <a href="${COMPANY_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a><br>${FOUNDER_NAME.split(",")[0]}: <a href="${FOUNDER_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a>` };
+  }
+  if (qms){ lastTopic="qms"; return { text:`${KB.qms_intro}\n\nWhat is your stage and target standard?` }; }
+  if (reg){ lastTopic="regulatory"; regCtx={cls:null,region:null}; return { text:`${KB.reg_intro}\n\nWhat device class and region?` }; }
+  if (ai){  lastTopic="ai"; return { text:`${KB.ai_intro}\n\nWhat model or use case are you qualifying?` }; }
+  if (startup){
+    if (lastTopic==="qms" || lastTopic===null){ lastTopic="qms"; return { text:KB.qms_startup, capture:true, showCTA:true }; }
+    if (lastTopic==="regulatory"){ return { text:`For early teams, clarify intended use and claims, line up biocomp and bench testing, and plan a Pre Sub. We can draft questions and outline evidence so you do not over or under test.`, capture:true, showCTA:true }; }
+    if (lastTopic==="ai"){ return { text:`For AI startups, define data lineage, validation acceptance criteria, and risk controls up front. We can help assemble an evidence package you can reuse for audits.`, capture:true, showCTA:true }; }
+  }
+  if (lastTopic==="regulatory"){
+    if (cls2) regCtx.cls="Class II";
+    if (cls3) regCtx.cls="Class III";
+    if (inUS) regCtx.region="US";
+    if (inEU) regCtx.region="EU";
+
+    if (regCtx.cls && regCtx.region){
+      const both = regCtx.cls + " • " + regCtx.region;
+      if (regCtx.cls==="Class III" && regCtx.region==="US"){
+        return { text:`${both}: ${KB.reg_class3_us}`, capture:true, showCTA:true, showContact:true };
+      }
+      if (regCtx.cls==="Class II" && regCtx.region==="US"){
+        return { text:`${both}: Likely 510(k). We will align intended use and claims, evaluate predicate strategy, scope bench and biocomp testing, and prep labeling for submission. We can also draft a focused Pre Sub if novel.`, capture:true, showCTA:true, showContact:true };
+      }
+      if (regCtx.region==="EU"){
+        return { text:`${both}: Plan MDR conformity with the right GSPRs, clinical evaluation strategy, and PMS or PMCF. We can outline technical documentation and gap check labeling.`, capture:true, showCTA:true, showContact:true };
+      }
+    }
+    if (regCtx.cls && !regCtx.region) return { text:`Got it (${regCtx.cls}). Which region, US or EU?` };
+    if (!regCtx.cls && (inUS||inEU)) return { text:`Region set to ${regCtx.region||"US or EU"}. What device class, II or III?` };
+  }
+  if (has(q,["tell me more","more info","details","elaborate","expand"])){
+    if (lastTopic==="nathan")    return { text:KB.nathan, showContact:true };
+    if (lastTopic==="deicell")   return { text:`${KB.deicell}\n\n${KB.value}`, showCTA:true, showContact:true };
+    if (lastTopic==="qms")       return { text:`${KB.qms_intro}\n\n${KB.qms_startup}`, capture:true, showCTA:true };
+    if (lastTopic==="regulatory")return { text:KB.reg_intro, capture:true, showCTA:true };
+    if (lastTopic==="ai")        return { text:KB.ai_intro, capture:true, showCTA:true };
+  }
+
+  // INTEGRATED CTA VERSION
+  if (isHelp){
+    if (!document.getElementById("dc-capture")) addCapture();
+    return {
+      html: `
         <div>
-          <div style="margin-bottom:6px"><strong>Contact</strong></div>
-          <div>Email: <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a></div>
-          <div>Company: <a href="${COMPANY_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a></div>
-          <div>${FOUNDER_NAME}: <a href="${FOUNDER_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a></div>
+          I can connect you now. <strong>Book below</strong> or email
+          <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a>.
+          <div class="dc-actions" style="margin-top:8px">
+            <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener"
+               style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap;line-height:1;min-height:40px;padding:8px 14px;">
+              Book a consult
+            </a>
+          </div>
         </div>
-      `);
-      addHTML(html);
-    }
-
-    // Knowledge and routing
-    let lastTopic=null, regCtx={cls:null,region:null};
-    const KB={
-      nathan:`Nathan Jones is a regulatory and quality systems consultant and the Founder of DeiCell Systems. He helps biotech and medtech teams build inspection ready operations across GMP, ISO 13485, and ICH, bridging bench biology with scalable compliance from development through postmarket. Hands on with batch review, CAPA, labeling compliance, and USP <61>/<62>/<71> microbiology. Completing an MBA at Xavier and pursuing RAC through RAPS.`,
-      deicell:`DeiCell Systems helps biotech and medtech innovators scale with precision. We provide regulatory, quality, and strategic consulting grounded in systems thinking and scientific rigor, from GxP compliant frameworks to microbiology informed compliance strategies, for early and growth stage teams.`,
-      value:`Why DeiCell: risk based, right sized systems; traceable, audit ready documentation; microbiology aware controls; and pragmatic coaching so teams stay fast without breaking compliance.`,
-      qms_intro:`QMS: right sized ISO 13485 architecture, doc control, training, CAPA, risk, change control, plus audit prep and stage appropriate SOPs.`,
-      qms_startup:`For startups: lean, tiered QMS that scales with funding and maturity. We emphasize essentials like risk, doc control, and training, and deepen as you approach clinical or market milestones.`,
-      reg_intro:`Regulatory: pathway and testing strategy, Pre Sub planning, submission authoring such as 510(k), De Novo, PMA, and labeling reviews aligned to FDA, ISO, and MDR.`,
-      reg_class3_us:`US Class III: PMA strategy, Pre Sub questions, clinical evidence planning, design dossier structure, biocompatibility and statistics pointers, labeling checks, plus inspection readiness and traceability.`,
-      ai_intro:`AI and ML: data governance, validation planning, model risk checks, and evidence packages. We pair regulatory insight with NLP assisted review for literature, PMS, and training datasets.`
+      `,
+      capture:true,
+      showContact:true
+      // no showCTA here — the button is already in this same bubble
     };
+  }
 
-    function reply(qRaw){
-      const q=(qRaw||"").toLowerCase().trim();
-      const has=(s,arr)=>arr.some(k=>s.includes(k));
-      const emailMatch = qRaw && qRaw.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
-
-      const isHelp    = has(q,["help","support","connect","agent","human","talk","speak","contact","reach"]);
-      const askWhoNJ  = has(q,["who is nathan","nathan jones","founder"]) || q==="nathan";
-      const askDei    = has(q,["what is deicell","about deicell","the company","tell me more about deicell","what is your company","more about deicell"]);
-      const askWhy    = has(q,["why choose","why deicell","why should i choose"]);
-      const askEmail  = has(q,["email","where do i add my email","submit my email","add my email"]);
-      const askLinked = has(q,["linkedin"]);
-
-      const qms       = has(q,["qms","iso","quality","document","sop","capa","risk","training"]);
-      const reg       = has(q,["regulatory","fda","510k","510(k)","de novo","denovo","pma","submission","label"]);
-      const ai        = has(q,["ai","ml","validation","bias","dataset","governance"]);
-      const startup   = has(q,["startup","start up","early stage"]);
-      const cls2      = has(q,["class 2","class ii"]);
-      const cls3      = has(q,["class 3","class iii"]);
-      const inUS      = has(q,[" us"," u.s"," usa"," united states"," fda"]) || q==="us";
-      const inEU      = has(q,[" eu"," europe"," european union"," mdr"]);
-
-      if (emailMatch){
-        if (!document.getElementById("dc-capture")) addCapture();
-        return { text:`Thanks, noted ${emailMatch[0]}. Add a note and hit Submit Info if you like.`, showCTA:true, showContact:true };
-      }
-      if (askWhoNJ){ lastTopic="nathan"; return { text:KB.nathan, showContact:true }; }
-      if (askDei || has(q,["what do you do","tell me more about your company"])){
-        lastTopic="deicell"; return { text:`${KB.deicell}\n\n${KB.value}`, showCTA:true, showContact:true };
-      }
-      if (askWhy){ lastTopic="deicell"; return { text:KB.value, showCTA:true, showContact:true }; }
-      if (askEmail){
-        if (!document.getElementById("dc-capture")) addCapture();
-        return { html:`Use the form above or email <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a>.`, showCTA:true };
-      }
-      if (askLinked){
-        return { html:`Company: <a href="${COMPANY_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a><br>${FOUNDER_NAME.split(",")[0]}: <a href="${FOUNDER_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a>` };
-      }
-      if (qms){ lastTopic="qms"; return { text:`${KB.qms_intro}\n\nWhat is your stage and target standard?` }; }
-      if (reg){ lastTopic="regulatory"; regCtx={cls:null,region:null}; return { text:`${KB.reg_intro}\n\nWhat device class and region?` }; }
-      if (ai){  lastTopic="ai"; return { text:`${KB.ai_intro}\n\nWhat model or use case are you qualifying?` }; }
-      if (startup){
-        if (lastTopic==="qms" || lastTopic===null){ lastTopic="qms"; return { text:KB.qms_startup, capture:true, showCTA:true }; }
-        if (lastTopic==="regulatory"){ return { text:`For early teams, clarify intended use and claims, line up biocomp and bench testing, and plan a Pre Sub. We can draft questions and outline evidence so you do not over or under test.`, capture:true, showCTA:true }; }
-        if (lastTopic==="ai"){ return { text:`For AI startups, define data lineage, validation acceptance criteria, and risk controls up front. We can help assemble an evidence package you can reuse for audits.`, capture:true, showCTA:true }; }
-      }
-      if (lastTopic==="regulatory"){
-        if (cls2) regCtx.cls="Class II";
-        if (cls3) regCtx.cls="Class III";
-        if (inUS) regCtx.region="US";
-        if (inEU) regCtx.region="EU";
-
-        if (regCtx.cls && regCtx.region){
-          const both = regCtx.cls + " • " + regCtx.region;
-          if (regCtx.cls==="Class III" && regCtx.region==="US"){
-            return { text:`${both}: ${KB.reg_class3_us}`, capture:true, showCTA:true, showContact:true };
-          }
-          if (regCtx.cls==="Class II" && regCtx.region==="US"){
-            return { text:`${both}: Likely 510(k). We will align intended use and claims, evaluate predicate strategy, scope bench and biocomp testing, and prep labeling for submission. We can also draft a focused Pre Sub if novel.`, capture:true, showCTA:true, showContact:true };
-          }
-          if (regCtx.region==="EU"){
-            return { text:`${both}: Plan MDR conformity with the right GSPRs, clinical evaluation strategy, and PMS or PMCF. We can outline technical documentation and gap check labeling.`, capture:true, showCTA:true, showContact:true };
-          }
-        }
-        if (regCtx.cls && !regCtx.region) return { text:`Got it (${regCtx.cls}). Which region, US or EU?` };
-        if (!regCtx.cls && (inUS||inEU)) return { text:`Region set to ${regCtx.region||"US or EU"}. What device class, II or III?` };
-      }
-      if (has(q,["tell me more","more info","details","elaborate","expand"])){
-        if (lastTopic==="nathan")    return { text:KB.nathan, showContact:true };
-        if (lastTopic==="deicell")   return { text:`${KB.deicell}\n\n${KB.value}`, showCTA:true, showContact:true };
-        if (lastTopic==="qms")       return { text:`${KB.qms_intro}\n\n${KB.qms_startup}`, capture:true, showCTA:true };
-        if (lastTopic==="regulatory")return { text:KB.reg_intro, capture:true, showCTA:true };
-        if (lastTopic==="ai")        return { text:KB.ai_intro, capture:true, showCTA:true };
-      }
-      if (isHelp){
-        if (!document.getElementById("dc-capture")) addCapture();
-        return { html:`I can connect you now. Use the inquiry form or email <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a>.`, capture:true, showCTA:true, showContact:true };
-      }
-      return { text:"Happy to help. Is this about QMS, Regulatory, or AI? I can also connect you to a consultant.", capture:true };
-    }
+  return { text:"Happy to help. Is this about QMS, Regulatory, or AI? I can also connect you to a consultant.", capture:true };
+}
 
     // Initial prompt
     if (history.length){ render(); }
