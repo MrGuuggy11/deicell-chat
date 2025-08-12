@@ -1,3 +1,4 @@
+<script>
 (function(){
   "use strict";
 
@@ -36,6 +37,38 @@
       root.setAttribute("aria-hidden","true");
       document.body.appendChild(root);
     }
+
+    // Inject scoped styles for CTA and buttons to avoid Carrd collisions
+    (function injectCTAStyles(){
+      if (document.getElementById("dc-cta-style")) return;
+      const style = document.createElement("style");
+      style.id = "dc-cta-style";
+      style.textContent = `
+        #dc-chat-root .dc-actions{
+          display:block;margin-top:6px;padding:0;border:0;box-shadow:none;background:transparent;
+          text-align:left;
+        }
+        #dc-chat-root .dc-actions *{ box-sizing:border-box; }
+        #dc-chat-root .dc-actions .dc-btn{
+          display:inline-flex;align-items:center;justify-content:center;
+          height:40px;padding:0 14px;max-width:100%;
+          border-radius:10px;border:1px solid rgba(255,255,255,.22);
+          background:rgba(12,17,19,.85);color:#EAF2F5;text-decoration:none;
+          line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          font:600 14px/1 Verdana, Geneva, sans-serif;
+          box-shadow:0 8px 24px rgba(0,0,0,.32);cursor:pointer;
+        }
+        #dc-chat-root .dc-actions .dc-btn.secondary{
+          background:transparent;border-color:rgba(255,255,255,.18);box-shadow:none;
+        }
+        #dc-chat-root .dc-actions .dc-btn:focus{ outline:2px solid rgba(0,160,255,.45); outline-offset:2px; }
+        /* keep bubbles tight so CTA does not look double boxed */
+        #dc-chat-root #dc-log .dc-msg .bubble .dc-actions{
+          background:transparent !important;border:0 !important;box-shadow:none !important;padding:0 !important;
+        }
+      `;
+      (document.head || document.documentElement).appendChild(style);
+    })();
 
     const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/\n/g,"<br>");
     const showToast = (msg)=>{
@@ -111,7 +144,7 @@
       if (document.getElementById("dc-capture")) return;
       const id = "dc-capture";
       const html = bubble("assistant", `
-        <form id="${id}" style="display:grid;gap:6px;margin-top:6px">
+        <form id="\${id}" style="display:grid;gap:6px;margin-top:6px">
           <div style="display:grid;gap:6px">
             <input type="text"  name="name"    placeholder="Your name" required
                    style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
@@ -185,13 +218,12 @@
       }, 0);
     }
 
+    // Clean CTA (no inline styles) with duplicate guard
     function addCTA(){
+      if (document.getElementById("dc-cta")) return;
       const html = bubble("assistant", `
-        <div class="dc-actions">
-          <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener"
-             style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap;line-height:1;min-height:40px;padding:8px 14px;">
-            Book a consult
-          </a>
+        <div id="dc-cta" class="dc-actions">
+          <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener">Book a consult</a>
         </div>
       `);
       addHTML(html);
@@ -296,7 +328,7 @@
         if (lastTopic === "ai")        return { text: KB.ai_intro, capture: true, showCTA: true };
       }
 
-      // Integrated CTA version
+      // Integrated CTA version (no inline styles)
       if (isHelp){
         if (!document.getElementById("dc-capture")) addCapture();
         return {
@@ -305,10 +337,7 @@
               I can connect you now. <strong>Book below</strong> or email
               <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a>.
               <div class="dc-actions" style="margin-top:8px">
-                <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener"
-                   style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap;line-height:1;min-height:40px;padding:8px 14px;">
-                  Book a consult
-                </a>
+                <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener">Book a consult</a>
               </div>
             </div>
           `,
@@ -397,3 +426,4 @@
     start();
   }
 })();
+</script>
