@@ -104,7 +104,7 @@
             <a href="mailto:${COMPANY_EMAIL}" class="dc-btn secondary">Email Us</a>
           </div>
         </form>
-      `); // <- fixed: single closing );
+      `); // fixed: closes bubble(...) correctly
       addHTML(html);
       setTimeout(()=>{
         const f=document.getElementById(id);
