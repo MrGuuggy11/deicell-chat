@@ -102,99 +102,115 @@
     const addHTML=(html)=>{ history.push({role:"assistant",html}); save(); render(); };
 
     // Components
-    function addCapture(){
-      if (document.getElementById("dc-capture")) return;
-      const id="dc-capture";
-      const html = bubble("assistant", `
-        <form id="${id}" style="display:grid;gap:6px;margin-top:6px">
-          <div style="display:grid;gap:6px">
-            <input type="text"  name="name"    placeholder="Your name" required
-                   style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="email" name="email"   placeholder="Email" required
-                   style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="tel"   name="phone"   placeholder="Phone (optional)"
-                   style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="text"  name="subject" placeholder="Subject"
-                   style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <textarea name="note" rows="2" placeholder="Message"
-                      style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5"></textarea>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button type="submit" class="dc-btn">Submit Info</button>
-            <a href="mailto:${COMPANY_EMAIL}" class="dc-btn secondary">Email Us</a>
-          </div>
-        </form>
-      `);
-      addHTML(html);
+  function addCapture(){
+  if (document.getElementById("dc-capture")) return;
+  const id="dc-capture";
+  const html = bubble("assistant", `
+    <form id="${id}" style="display:grid;gap:6px;margin-top:6px">
+      <div style="display:grid;gap:6px">
+        <input type="text"  name="name"    placeholder="Your name" required
+               style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
+        <input type="email" name="email"   placeholder="Email" required
+               style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
+        <input type="tel"   name="phone"   placeholder="Phone (optional)"
+               style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
+        <input type="text"  name="subject" placeholder="Subject"
+               style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
+        <textarea name="note" rows="2" placeholder="Message"
+                  style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5"></textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="dc-btn">Submit Info</button>
+        <a href="mailto:${COMPANY_EMAIL}" class="dc-btn secondary">Email Us</a>
+      </div>
+    </form>
+  `);
+  addHTML(html);
 
-      // Wire up submit
-      setTimeout(()=>{
-        const f=document.getElementById(id);
-        if(!f) return;
+  setTimeout(()=>{
+    const f=document.getElementById(id);
+    if(!f) return;
 
-        f.addEventListener("submit", async (e)=>{
-          e.preventDefault();
+    f.addEventListener("submit", (e)=>{
+      e.preventDefault();
 
-          const fd = new FormData(f);
-          const name    = (fd.get("name")    || "").toString().trim();
-          const email   = (fd.get("email")   || "").toString().trim();
-          const phone   = (fd.get("phone")   || "").toString().trim();
-          const subject = (fd.get("subject") || "").toString().trim();
-          const note    = (fd.get("note")    || "").toString().trim();
+      // Collect values
+      const fd = new FormData(f);
+      const name    = (fd.get("name")    || "").toString().trim();
+      const email   = (fd.get("email")   || "").toString().trim();
+      const phone   = (fd.get("phone")   || "").toString().trim();
+      const subject = (fd.get("subject") || "").toString().trim();
+      const note    = (fd.get("note")    || "").toString().trim();
 
-          let sent = false;
+      // Build a hidden <form> that posts to Google Forms (most reliable)
+      let sent = false;
+      try {
+        // You already defined GOOGLE_FORM earlier in the script
+        const targetName = "dc-gform-target";
+        let iframe = document.getElementById(targetName);
+        if (!iframe){
+          iframe = document.createElement("iframe");
+          iframe.id = targetName;
+          iframe.name = targetName;
+          iframe.style.display = "none";
+          document.body.appendChild(iframe);
+        }
 
-          // --- send to Google Forms ---
-          if (GOOGLE_FORM.action){
-            try{
-              const params = new URLSearchParams();
-              params.append(GOOGLE_FORM.fields.name,    name);
-              params.append(GOOGLE_FORM.fields.email,   email);
-              params.append(GOOGLE_FORM.fields.phone,   phone);
-              params.append(GOOGLE_FORM.fields.subject, subject);
-              params.append(GOOGLE_FORM.fields.message, note);
+        const gf = document.createElement("form");
+        gf.action = GOOGLE_FORM.action;
+        gf.method = "POST";
+        gf.target = targetName;
+        gf.style.display = "none";
 
-              // harmless extras some forms include
-              params.append("fvv","1");
-              params.append("pageHistory","0");
-              params.append("fbzx", String(Date.now()));
+        const set = (n,v)=>{ const i=document.createElement("input"); i.type="hidden"; i.name=n; i.value=v; gf.appendChild(i); };
 
-              await fetch(GOOGLE_FORM.action, {
-                method: "POST",
-                mode: "no-cors", // can't read response, but Google records it
-                body: params
-              });
-              sent = true;
-            } catch(_) {}
-          }
-          // --------------------------------
+        set(GOOGLE_FORM.fields.name,    name);
+        set(GOOGLE_FORM.fields.email,   email);
+        set(GOOGLE_FORM.fields.phone,   phone);
+        set(GOOGLE_FORM.fields.subject, subject);
+        set(GOOGLE_FORM.fields.message, note);
 
-          // Fallback: stash locally if not sent
-          if(!sent){
-            try{
-              const stash = JSON.parse(localStorage.getItem("dc_leads") || "[]");
-              stash.push({ ts:Date.now(), name, email, phone, subject, note, page: location.href });
-              localStorage.setItem("dc_leads", JSON.stringify(stash));
-            }catch(_){}
-          }
+        // harmless extras
+        set("fvv","1");
+        set("pageHistory","0");
+        set("fbzx", String(Date.now()));
+        // set("submit","Submit"); // optional
 
-          add("assistant", sent
-            ? "Thanks — submitted! We’ll be in touch soon."
-            : "Thanks — saved locally. We’ll reach out soon.");
-          showToast(sent ? "Submitted" : "Saved");
-          f.reset();
-        });
-      },0);
-    }
+        document.body.appendChild(gf);
+        gf.submit();
+        sent = true;
 
-    function addCTA(){
-      const html = bubble("assistant", `
-        <div class="dc-actions">
-          <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener">Book a consult</a>
-        </div>
-      `);
-      addHTML(html);
-    }
+        // clean up after a moment
+        setTimeout(()=>{ try{ gf.remove(); }catch(_){} }, 1500);
+      } catch(_) {}
+
+      // Fallback: stash locally if something goes wrong
+      if (!sent){
+        try{
+          const stash = JSON.parse(localStorage.getItem("dc_leads") || "[]");
+          stash.push({ ts:Date.now(), name, email, phone, subject, note, page: location.href });
+          localStorage.setItem("dc_leads", JSON.stringify(stash));
+        }catch(_){}
+      }
+
+      add("assistant", sent
+        ? "Thanks — submitted! We’ll be in touch soon."
+        : "Thanks — saved locally. We’ll reach out soon.");
+      showToast(sent ? "Submitted" : "Saved");
+      f.reset();
+    });
+  },0);
+}
+
+function addCTA(){
+  const html = bubble("assistant", `
+    <div class="dc-actions">
+      <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener"
+         style="display:inline-block;text-decoration:none;">Book a consult</a>
+    </div>
+  `);
+  addHTML(html);
+}
 
     function addContact(){
       const html=bubble("assistant", `
