@@ -130,20 +130,15 @@
     }
 
     function addCTA(){
-      const html=bubble("assistant", `
-        <div class="dc-actions">
-          <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener">Book a consult</a>
-          <button class="dc-btn secondary" type="button" id="dc-copy-email">Copy email</button>
-        </div>
-      `);
-      addHTML(html);
-      setTimeout(()=>{
-        const copy=document.getElementById("dc-copy-email");
-        if(copy) copy.addEventListener("click", async ()=>{
-          try{ await navigator.clipboard.writeText("${COMPANY_EMAIL}"); showToast("Email copied"); }catch(e){ showToast("Copy failed"); }
-        });
-      },0);
-    }
+  const html = bubble("assistant", `
+    <div class="dc-actions">
+      <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener">Book a consult</a>
+      <a class="dc-btn secondary" href="${CONSULT_URL}" target="_blank" rel="noopener">Contact form</a>
+    </div>
+  `);
+  addHTML(html);
+  // (No clipboard handler anymore)
+}
 
     function addContact(){
       const html=bubble("assistant", `
