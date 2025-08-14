@@ -22,19 +22,20 @@ window.DC_NAV_CONFIG = {
     },
     { label: "Contact", href: "#contact" }
   ],
-  activePathAuto: true // highlight last-tapped link (and same-page anchors)
+  activePathAuto: true
 };
 
 /* === Inject markup === */
 (function () {
   const C = window.DC_NAV_CONFIG || {};
+
   const shell = document.createElement("div");
   shell.id = "dc-shell";
   const bar = document.createElement("div");
   bar.id = "dc-bar";
   shell.appendChild(bar);
 
-  // brand
+  // Brand
   const brand = document.createElement("a");
   brand.className = "dc-brand";
   brand.href = C.brandHref || "#top";
@@ -47,7 +48,7 @@ window.DC_NAV_CONFIG = {
   brand.appendChild(img);
   bar.appendChild(brand);
 
-  // hamburger
+  // Hamburger
   const burger = document.createElement("button");
   burger.className = "dc-burger";
   burger.setAttribute("aria-label", "Toggle menu");
@@ -55,7 +56,7 @@ window.DC_NAV_CONFIG = {
   burger.innerHTML = "<span></span>";
   bar.appendChild(burger);
 
-  // menu
+  // Menu
   const ul = document.createElement("ul");
   ul.className = "dc-menu";
   ul.id = "dcMenu";
@@ -104,32 +105,39 @@ window.DC_NAV_CONFIG = {
     const open = menu.classList.toggle("open");
     burger.setAttribute("aria-expanded", open ? "true" : "false");
   }
-
-  function toggleSub(e) {
-    if (window.matchMedia("(max-width: 820px)").matches) {
-      e.preventDefault();
-      const li = e.currentTarget.closest("li");
-      document
-        .querySelectorAll("#dcMenu > li")
-        .forEach((n) => {
-          if (n !== li) n.classList.remove("open");
-        });
-      li.classList.toggle("open");
-    }
-  }
-
   burger.addEventListener("click", toggleMenu, { passive: true });
 
-  // Use :scope for reliable child selection on Safari
+  // One listener that:
+  // - toggles submenu on mobile IF it has a dropdown
+  // - otherwise navigates and closes the menu
   ul.querySelectorAll(":scope > li > a.dc-link").forEach((a) => {
-    a.addEventListener("click", toggleSub);
+    a.addEventListener("click", (e) => {
+      const hasDrop =
+        a.nextElementSibling && a.nextElementSibling.classList.contains("dc-drop");
+
+      if (window.matchMedia("(max-width: 820px)").matches) {
+        if (hasDrop) {
+          e.preventDefault();
+          const li = a.closest("li");
+          document
+            .querySelectorAll("#dcMenu > li")
+            .forEach((n) => n !== li && n.classList.remove("open"));
+          li.classList.toggle("open");
+        } else {
+          // plain link on mobile: close sheet, allow navigation
+          menu.classList.remove("open");
+          document.querySelectorAll("#dcMenu > li").forEach((n) => n.classList.remove("open"));
+        }
+      }
+    });
   });
 
-  // click outside to close (mobile)
-  document.addEventListener("click", function (e) {
+  // Click outside closes sheet (mobile)
+  document.addEventListener("click", (e) => {
     if (window.matchMedia("(max-width: 820px)").matches) {
       if (!document.getElementById("dc-shell").contains(e.target)) {
         menu.classList.remove("open");
+        document.querySelectorAll("#dcMenu > li").forEach((n) => n.classList.remove("open"));
       }
     }
   });
@@ -148,7 +156,6 @@ window.DC_NAV_CONFIG = {
 /* === Safe-area watcher for iOS dynamic toolbars === */
 (function () {
   function updateSafeTop() {
-    // Read env(safe-area-inset-top) via a temp element (works across iOS versions)
     const probe = document.createElement("div");
     probe.style.cssText =
       "position:fixed;top:0;left:-9999px;height:0;padding-top:env(safe-area-inset-top);";
@@ -157,16 +164,14 @@ window.DC_NAV_CONFIG = {
     document.body.removeChild(probe);
     document.documentElement.style.setProperty("--safe-top", pt || "0px");
   }
+  const run = () => requestAnimationFrame(updateSafeTop);
 
-  const run = () => {
-    requestAnimationFrame(updateSafeTop);
-  };
   window.addEventListener("load", run, { once: true });
   window.addEventListener("resize", run);
   window.addEventListener("orientationchange", run);
 
-  // Also update when the mobile menu opens/closes (iOS may shift toolbars)
-  document.addEventListener("click", function (e) {
+  // Update when menu opens/closes too
+  document.addEventListener("click", (e) => {
     if (e.target.closest(".dc-burger") || e.target.closest("#dcMenu")) run();
   });
 })();
