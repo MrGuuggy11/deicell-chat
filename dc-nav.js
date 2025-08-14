@@ -31,7 +31,6 @@ window.DC_NAV_CONFIG = Object.assign({
 (function(){
   const C = window.DC_NAV_CONFIG;
 
-  // Shell + bar
   const shell = document.createElement('div'); shell.id = 'dc-shell';
   const bar   = document.createElement('div');  bar.id = 'dc-bar';
 
@@ -64,9 +63,14 @@ window.DC_NAV_CONFIG = Object.assign({
     const li = document.createElement('li');
 
     if (group.items && group.items.length){
+      // Top-level toggle (NOT a real link)
       const top = document.createElement('a');
-      top.className = 'dc-link';
-      top.href = '#';
+      top.className = 'dc-link dc-toggle';
+      top.href = '#';                    // harmless, but we will preventDefault always
+      top.setAttribute('role','button'); // accessible
+      top.setAttribute('aria-haspopup','true');
+      top.setAttribute('aria-expanded','false');
+      top.tabIndex = 0;
       top.innerHTML = `<span>${group.label}</span><span class="caret">▾</span>`;
       li.appendChild(top);
 
@@ -103,18 +107,32 @@ window.DC_NAV_CONFIG = Object.assign({
   }
   function closeMenu(){ menu.classList.remove('open'); burger.setAttribute('aria-expanded','false'); }
 
-  function toggleSub(e){
-    if (window.matchMedia('(max-width: 820px)').matches){
-      e.preventDefault();
-      const li = e.currentTarget.closest('li');
-      document.querySelectorAll('#dcMenu > li').forEach(n => { if (n!==li) n.classList.remove('open'); });
-      li.classList.toggle('open');
+  // Open/close submenus on mobile/touch; never navigate on top-level toggles
+  function onTopToggleClick(e){
+    e.preventDefault();                   // <-- blocks page reload/jump on ALL devices
+    const li = e.currentTarget.closest('li');
+
+    // On touch devices or small screens, toggle
+    const isTouchish = window.matchMedia('(hover: none)').matches || window.matchMedia('(max-width: 820px)').matches;
+    if (isTouchish){
+      // close other submenus
+      document.querySelectorAll('#dcMenu > li').forEach(n=>{ if(n!==li) n.classList.remove('open'); });
+      const open = li.classList.toggle('open');
+      e.currentTarget.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
+    // On desktop with hover, do nothing — hover already shows dropdown
   }
 
   burger.addEventListener('click', toggleMenu);
   burger.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMenu(); }});
-  ul.querySelectorAll('> li > a.dc-link').forEach(a => a.addEventListener('click', toggleSub));
+
+  // Bind to ALL top-level toggles (Solutions, About)
+  ul.querySelectorAll('> li > a.dc-toggle').forEach(a=>{
+    a.addEventListener('click', onTopToggleClick);
+    a.addEventListener('keydown', e=>{
+      if (e.key === 'Enter' || e.key === ' ') { onTopToggleClick(e); }
+    });
+  });
 
   // Click outside to close (mobile)
   document.addEventListener('click', e => {
@@ -123,9 +141,7 @@ window.DC_NAV_CONFIG = Object.assign({
     }
   });
   // ESC closes menu
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeMenu();
-  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
 
   /* --- Active link on click --- */
   if (C.activePathAuto){
