@@ -29,6 +29,7 @@ html, body, #main{ transform:none !important; }
   pointer-events:none;             /* bar itself will accept clicks */
   transform:translateZ(0);         /* crisp blur on iOS */
   z-index: 2147483000 !important;  /* SUPER high so nothing overlays */
+  isolation:isolate;               /* new: own stacking context */
 }
 
 /* Floating rounded “glass” bar */
@@ -48,6 +49,11 @@ html, body, #main{ transform:none !important; }
   border:1px solid rgba(255,255,255,.10);
   box-shadow:0 18px 48px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.12);
   z-index: 2147483001 !important;
+
+  /* new: make the bar its own paint/stacking layer so nothing pierces it */
+  position: relative;
+  isolation: isolate;
+  contain: paint;
 }
 
 /* Brand */
@@ -66,6 +72,9 @@ html, body, #main{ transform:none !important; }
   display:inline-flex; align-items:center; gap:6px;
 }
 .dc-link:hover{ color:var(--nav-accent); }
+
+/* When top items are toggles (no navigation) show pointer cursor */
+.dc-toggle{ cursor:pointer; }
 
 /* Underline hover + active state */
 .dc-link::after{
