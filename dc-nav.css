@@ -1,4 +1,4 @@
-/* === DeiCell Nav — CSS (no dependencies) === */
+/* === DeiCell Nav — CSS (clean build with mobile fixes) === */
 :root{
   --nav-h: 58px;
   --nav-m: 12px;
@@ -25,9 +25,10 @@ html, body, #main{ transform:none !important; }
 
 /* Shell holds the floating bar */
 #dc-shell{
-  position:fixed; top:0; left:0; right:0; z-index:99999;
+  position:fixed; top:0; left:0; right:0;
   pointer-events:none;             /* bar itself will accept clicks */
   transform:translateZ(0);         /* crisp blur on iOS */
+  z-index: 2147483000 !important;  /* SUPER high so nothing overlays */
 }
 
 /* Floating rounded “glass” bar */
@@ -46,6 +47,7 @@ html, body, #main{ transform:none !important; }
   border-radius:18px;
   border:1px solid rgba(255,255,255,.10);
   box-shadow:0 18px 48px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.12);
+  z-index: 2147483001 !important;
 }
 
 /* Brand */
@@ -53,7 +55,7 @@ html, body, #main{ transform:none !important; }
 .dc-brand:hover{ color:var(--nav-accent); }
 
 /* Menu baseline */
-.dc-menu{ list-style:none; display:flex; gap:22px; margin:0; padding:0; }
+.dc-menu{ list-style:none; display:flex; gap:22px; margin:0; padding:0; z-index: 2147483002 !important; }
 .dc-menu > li{ position:relative; }
 
 /* Top links */
@@ -143,7 +145,7 @@ html, body, #main{ transform:none !important; }
     width:calc(100% - 22px); max-width:720px;
 
     flex-direction:column; gap:0; margin:0; padding:0;
-    border-radius:14px; overflow:hidden; z-index:100000;
+    border-radius:14px; overflow:hidden; z-index:2147483002 !important;
 
     background:rgba(44,82,78,.96);
     border:1px solid rgba(255,255,255,.10);
@@ -167,4 +169,31 @@ html, body, #main{ transform:none !important; }
 @supports not ((backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px))){
   #dc-bar{ background: rgba(44,82,78,.95) !important; }
   .dc-drop{ background: rgba(44,82,78,.95) !important; }
+}
+
+/* =========================
+   CARRD SECTION LABEL FIXES
+   ========================= */
+
+/* Hide the Contact section's floating label on mobile (prevents overlay) */
+@media (max-width:820px){
+  #contact .label,
+  #contact .section .label,
+  #contact [class*="label"],
+  [data-section="contact"] .label{
+    display:none !important;
+  }
+}
+
+/* If you prefer to keep labels but neutralize them on mobile everywhere, keep this block: */
+@media (max-width:820px){
+  .label, [class*="label"]{
+    position: static !important;
+    z-index: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 !important;
+    margin: 0 0 .5rem 0 !important;
+  }
 }
