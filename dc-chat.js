@@ -34,7 +34,12 @@
         subject: "entry.205543377",
         message: "entry.1595874015"
       }
-    };
+    }
+
+    // Carrd-style Apps Script web app (recommended: most reliable lead capture)
+    // This should be the same endpoint your Carrd contact form posts to.
+    const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzsFDJWMft9PSHPyAGoFs5CljdxHkxlIZMBHm71rLIgQjNdWK9PKdLWEZNbX6A1dZt0/exec";
+;
 
     // ------------------------------
     // Ensure root exists
@@ -97,9 +102,16 @@
         <input id="dc-input" type="text" placeholder="Ask about QMS, Regulatory, or AI..." autocomplete="off">
         <button id="dc-send" type="submit">Send</button>
       </form>
-      <div id="dc-toast">Saved</div>
+      <div id="dc-toast" style="position:absolute;left:50%;transform:translateX(-50%);bottom:96px;z-index:9999;pointer-events:none;">Saved</div>
     `;
     root.appendChild(panel);
+
+    // Ensure toast positioning works even if Carrd CSS leaves the panel as position: static
+    try {
+      if (window.getComputedStyle && window.getComputedStyle(panel).position === 'static') {
+        panel.style.position = 'relative';
+      }
+    } catch(e){}
 
     const log      = document.getElementById("dc-log");
     const closeBtn = document.getElementById("dc-close");
@@ -215,71 +227,105 @@
 
       let sent = false;
 
-      // Method A: POST to hidden iframe (most reliable)
-      try{
-        const targetName = "dc-gform-target";
-        let iframe = document.getElementById(targetName);
-        if(!iframe){
-          iframe = document.createElement("iframe");
-          iframe.id = targetName;
-          iframe.name = targetName;
-          iframe.style.display = "none";
-          document.body.appendChild(iframe);
-        }
+      // -------------------------------------------------
+      // Method A (preferred): Carrd-style Apps Script POST
+      // This matches Carrd's own contact form strategy.
+      // -------------------------------------------------
+      try {
+        const body = new URLSearchParams();
+        body.set("name", name);
+        body.set("email", email);
+        body.set("phone", phone);
+        body.set("subject", subject);
+        body.set("message", note);
 
-        const gf = document.createElement("form");
-        gf.action = GOOGLE_FORM.action;
-        gf.method = "POST";
-        gf.target = targetName;
-        gf.style.display = "none";
-
-        const setHidden = (n,v)=>{
-          const i = document.createElement("input");
-          i.type = "hidden";
-          i.name = n;
-          i.value = (v == null) ? "" : String(v);
-          gf.appendChild(i);
-        };
-
-        setHidden(GOOGLE_FORM.fields.name, name);
-        setHidden(GOOGLE_FORM.fields.email, email);
-        setHidden(GOOGLE_FORM.fields.phone, phone);
-        setHidden(GOOGLE_FORM.fields.subject, subject);
-        setHidden(GOOGLE_FORM.fields.message, note);
-        setHidden("submit", "Submit");
-
-        document.body.appendChild(gf);
-        gf.submit();
-        sent = true;
-
-        setTimeout(()=>{ try{ gf.remove(); }catch(e){} }, 1500);
-      }catch(e){
-        sent = false;
-      }
-
-      // Method B: fetch fallback (no-cors). Cannot confirm success, but often works.
-      if(!sent){
-        try{
-          const body = new URLSearchParams();
-          body.set(GOOGLE_FORM.fields.name, name);
-          body.set(GOOGLE_FORM.fields.email, email);
-          body.set(GOOGLE_FORM.fields.phone, phone);
-          body.set(GOOGLE_FORM.fields.subject, subject);
-          body.set(GOOGLE_FORM.fields.message, note);
-          body.set("submit", "Submit");
-
-          fetch(GOOGLE_FORM.action, {
+        if (navigator.sendBeacon) {
+          sent = navigator.sendBeacon(WEBAPP_URL, body);
+        } else {
+          fetch(WEBAPP_URL, {
             method: "POST",
             mode: "no-cors",
             headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
             body: body.toString()
           });
+          // no-cors gives no response; assume best-effort
           sent = true;
+        }
+      } catch (e) {
+        sent = false;
+      }
+
+      // -------------------------------------------------
+      // Method B (secondary): direct Google Form submit
+      // -------------------------------------------------
+      if (!sent) {
+        // Method B1: POST to hidden iframe
+        try{
+          const targetName = "dc-gform-target";
+          let iframe = document.getElementById(targetName);
+          if(!iframe){
+            iframe = document.createElement("iframe");
+            iframe.id = targetName;
+            iframe.name = targetName;
+            iframe.style.display = "none";
+            document.body.appendChild(iframe);
+          }
+
+          const gf = document.createElement("form");
+          gf.action = GOOGLE_FORM.action;
+          gf.method = "POST";
+          gf.target = targetName;
+          gf.style.display = "none";
+
+          const setHidden = (n,v)=>{
+            const i = document.createElement("input");
+            i.type = "hidden";
+            i.name = n;
+            i.value = (v == null) ? "" : String(v);
+            gf.appendChild(i);
+          };
+
+          setHidden(GOOGLE_FORM.fields.name, name);
+          setHidden(GOOGLE_FORM.fields.email, email);
+          setHidden(GOOGLE_FORM.fields.phone, phone);
+          setHidden(GOOGLE_FORM.fields.subject, subject);
+          setHidden(GOOGLE_FORM.fields.message, note);
+          setHidden("submit", "Submit");
+
+          document.body.appendChild(gf);
+          gf.submit();
+          sent = true;
+
+          setTimeout(()=>{ try{ gf.remove(); }catch(e){} }, 1500);
         }catch(e){
           sent = false;
         }
+
+        // Method B2: fetch fallback
+        if(!sent){
+          try{
+            const body = new URLSearchParams();
+            body.set(GOOGLE_FORM.fields.name, name);
+            body.set(GOOGLE_FORM.fields.email, email);
+            body.set(GOOGLE_FORM.fields.phone, phone);
+            body.set(GOOGLE_FORM.fields.subject, subject);
+            body.set(GOOGLE_FORM.fields.message, note);
+            body.set("submit", "Submit");
+
+            fetch(GOOGLE_FORM.action, {
+              method: "POST",
+              mode: "no-cors",
+              headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+              body: body.toString()
+            });
+            sent = true;
+          }catch(e){
+            sent = false;
+          }
+        }
       }
 
+      // Local fallback if nothing could be sent
       if(!sent){
         try{
           const stash = JSON.parse(localStorage.getItem("dc_leads") || "[]");
