@@ -153,6 +153,8 @@
     };
 
     // ------------------------------
+    // Lead capture submit (delegated; survives re-renders)
+    // ------------------------------
     // Components
     // ------------------------------
     function addCapture(){
@@ -182,81 +184,127 @@
         </form>
       `);
       addHTML(html);
-
-      setTimeout(()=>{
-        const f = document.getElementById(id);
-        if(!f) return;
-
-        f.addEventListener("submit", (e)=>{
-          e.preventDefault();
-
-          const fd = new FormData(f);
-          const name    = (fd.get("name")    || "").toString().trim();
-          const email   = (fd.get("email")   || "").toString().trim();
-          const phone   = (fd.get("phone")   || "").toString().trim();
-          const subject = (fd.get("subject") || "").toString().trim();
-          const note    = (fd.get("note")    || "").toString().trim();
-
-          // Simple validity check: respect browser validation too
-          if (!f.checkValidity()) {
-            try { f.reportValidity(); } catch(e){}
-            showToast("Check fields");
-            return;
-          }
-
-          let sent = false;
-          try{
-            const targetName = "dc-gform-target";
-            let iframe = document.getElementById(targetName);
-            if(!iframe){
-              iframe = document.createElement("iframe");
-              iframe.id = targetName;
-              iframe.name = targetName;
-              iframe.style.display = "none";
-              document.body.appendChild(iframe);
-            }
-
-            const gf = document.createElement("form");
-            gf.action = GOOGLE_FORM.action;
-            gf.method = "POST";
-            gf.target = targetName;
-            gf.style.display = "none";
-
-            const set = (n,v)=>{
-              const i = document.createElement("input");
-              i.type = "hidden"; i.name = n; i.value = v;
-              gf.appendChild(i);
-            };
-
-            set(GOOGLE_FORM.fields.name, name);
-            set(GOOGLE_FORM.fields.email, email);
-            set(GOOGLE_FORM.fields.phone, phone);
-            set(GOOGLE_FORM.fields.subject, subject);
-            set(GOOGLE_FORM.fields.message, note);
-            set("fvv","1"); set("pageHistory","0"); set("fbzx", String(Date.now()));
-
-            document.body.appendChild(gf);
-            gf.submit();
-            sent = true;
-
-            setTimeout(()=>{ try{ gf.remove(); }catch(e){} }, 1500);
-          }catch(e){}
-
-          if(!sent){
-            try{
-              const stash = JSON.parse(localStorage.getItem("dc_leads") || "[]");
-              stash.push({ ts: Date.now(), name, email, phone, subject, note, page: location.href });
-              localStorage.setItem("dc_leads", JSON.stringify(stash));
-            }catch(e){}
-          }
-
-          add("assistant", sent ? "Thanks, submitted. We will be in touch soon." : "Thanks, saved locally. We will reach out soon.");
-          showToast(sent ? "Submitted" : "Saved");
-          try { f.reset(); } catch(e){}
-        });
-      }, 0);
     }
 
+    // ------------------------------
+    // Lead capture submit (delegated; survives re-renders)
+    // Hot fix: remove fbzx/fvv/pageHistory and send only entry.* fields
+    // ------------------------------
+    function submitLeadCapture(f){
+      if(!f || f.id !== "dc-capture") return false;
+
+      // Respect browser validation
+      if (!f.checkValidity()) {
+        try { f.reportValidity(); } catch(e){}
+        showToast("Check fields");
+        return false;
+      }
+
+      // Prevent double-submit
+      try{
+        if (f.dataset && f.dataset.submitting === "1") return false;
+        if (f.dataset) f.dataset.submitting = "1";
+      }catch(e){}
+
+      const fd = new FormData(f);
+      const name    = (fd.get("name")    || "").toString().trim();
+      const email   = (fd.get("email")   || "").toString().trim();
+      const phone   = (fd.get("phone")   || "").toString().trim();
+      const subject = (fd.get("subject") || "").toString().trim();
+      const note    = (fd.get("note")    || "").toString().trim();
+
+      let sent = false;
+
+      // Method A: POST to hidden iframe (most reliable)
+      try{
+        const targetName = "dc-gform-target";
+        let iframe = document.getElementById(targetName);
+        if(!iframe){
+          iframe = document.createElement("iframe");
+          iframe.id = targetName;
+          iframe.name = targetName;
+          iframe.style.display = "none";
+          document.body.appendChild(iframe);
+        }
+
+        const gf = document.createElement("form");
+        gf.action = GOOGLE_FORM.action;
+        gf.method = "POST";
+        gf.target = targetName;
+        gf.style.display = "none";
+
+        const setHidden = (n,v)=>{
+          const i = document.createElement("input");
+          i.type = "hidden";
+          i.name = n;
+          i.value = (v == null) ? "" : String(v);
+          gf.appendChild(i);
+        };
+
+        setHidden(GOOGLE_FORM.fields.name, name);
+        setHidden(GOOGLE_FORM.fields.email, email);
+        setHidden(GOOGLE_FORM.fields.phone, phone);
+        setHidden(GOOGLE_FORM.fields.subject, subject);
+        setHidden(GOOGLE_FORM.fields.message, note);
+        setHidden("submit", "Submit");
+
+        document.body.appendChild(gf);
+        gf.submit();
+        sent = true;
+
+        setTimeout(()=>{ try{ gf.remove(); }catch(e){} }, 1500);
+      }catch(e){
+        sent = false;
+      }
+
+      // Method B: fetch fallback (no-cors). Cannot confirm success, but often works.
+      if(!sent){
+        try{
+          const body = new URLSearchParams();
+          body.set(GOOGLE_FORM.fields.name, name);
+          body.set(GOOGLE_FORM.fields.email, email);
+          body.set(GOOGLE_FORM.fields.phone, phone);
+          body.set(GOOGLE_FORM.fields.subject, subject);
+          body.set(GOOGLE_FORM.fields.message, note);
+          body.set("submit", "Submit");
+
+          fetch(GOOGLE_FORM.action, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+            body: body.toString()
+          });
+          sent = true;
+        }catch(e){
+          sent = false;
+        }
+      }
+
+      if(!sent){
+        try{
+          const stash = JSON.parse(localStorage.getItem("dc_leads") || "[]");
+          stash.push({ ts: Date.now(), name, email, phone, subject, note, page: location.href });
+          localStorage.setItem("dc_leads", JSON.stringify(stash));
+        }catch(e){}
+      }
+
+      add("assistant", sent ? "Thanks, submitted. We will be in touch soon." : "Thanks, saved locally. We will reach out soon.");
+      showToast(sent ? "Submitted" : "Saved");
+      try { f.reset(); } catch(e){}
+      try { if (f.dataset) f.dataset.submitting = "0"; } catch(e){}
+
+      return sent;
+    }
+
+    // Delegated listener: survives log.innerHTML re-renders
+    if (log){
+      log.addEventListener("submit", (e)=>{
+        const f = e.target;
+        if (!f || f.id !== "dc-capture") return;
+        e.preventDefault();
+        submitLeadCapture(f);
+      });
+    }
     function addCTA(){
       const html = bubble("assistant", `
         <div class="dc-actions">
