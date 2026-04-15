@@ -942,7 +942,7 @@
           engine.profile.regulatoryExposure
         ].join(" ")
       );
-
+    
       return includesAny(combined, [
         "no quality system",
         "no qms",
@@ -953,60 +953,81 @@
         "no deviation process",
         "no nonconformance process",
         "no supplier oversight",
-        "paper trail",
         "paper only",
-        "ad hoc",
         "uncontrolled",
         "not controlled",
-        "none",
-        "weak capa",
-        "weak investigations"
+        "nothing in place"
       ]);
     }
 
+    function hasReadinessFacingDefects() {
+      const combined = norm(
+        [
+          engine.profile.activeFailureModes,
+          engine.profile.currentReality,
+          engine.profile.regulatoryExposure
+        ].join(" ")
+      );
+    
+      return includesAny(combined, [
+        "training records",
+        "training gaps",
+        "weak capa",
+        "capa investigations",
+        "weak investigations",
+        "paper trail",
+        "document retrieval",
+        "evidence gaps",
+        "record gaps",
+        "retrievability",
+        "ad hoc",
+        "inconsistent"
+      ]);
+    }
+    
     function inferOfferFromProfile() {
       const ff = norm(engine.profile.forcingFunction);
-      const af = norm(engine.profile.activeFailureModes);
-      const cr = norm(engine.profile.currentReality);
       const rx = norm(engine.profile.regulatoryExposure);
       const mm = norm(engine.profile.manufacturingModel);
       const ext = norm(engine.profile.externalInterfaces);
-
-      const collapsed = hasCoreControlCollapse();
+    
+      const collapse = hasCoreControlCollapse();
+      const readinessDefects = hasReadinessFacingDefects();
+      const readinessEvent = includesAny(ff + " " + rx, [
+        "audit",
+        "inspection",
+        "diligence",
+        "investor diligence",
+        "customer audit"
+      ]);
+    
       const outsourcedPressure =
         mm === "outsourced" ||
         mm === "hybrid" ||
         includesAny(ext, ["cdmo", "cmo", "supplier", "external lab"]);
-
+    
       if (engine.entryMode === "partner_insert") return "Partner Insert";
       if (engine.entryMode === "blueprint") return "Right-Sized GMP/QMS Blueprint";
-
-      if (
-        collapsed ||
-        includesAny(af + " " + cr, [
-          "document control",
-          "training gap",
-          "weak capa",
-          "weak investigations",
-          "change churn",
-          "supplier oversight gap",
-          "no quality system"
-        ])
-      ) {
+    
+      // Collapse outranks readiness
+      if (collapse) {
         return "Gap Repair Sprint";
       }
-
-      if (
-        includesAny(ff + " " + rx, ["audit", "inspection", "diligence"]) &&
-        !collapsed
-      ) {
+    
+      // Readiness event + named diligence-facing defects = readiness sprint
+      if (readinessEvent && readinessDefects) {
         return "Audit Readiness Sprint";
       }
-
+    
+      // Readiness event without collapse still leans readiness
+      if (readinessEvent) {
+        return "Audit Readiness Sprint";
+      }
+    
       if (outsourcedPressure && !engine.profile.phase1Done) {
         return "Right-Sized GMP/QMS Blueprint";
       }
-
+    
       return "Right-Sized GMP/QMS Blueprint";
     }
 
@@ -1020,49 +1041,46 @@
       const reality = norm(engine.profile.currentReality);
       const active = norm(engine.profile.activeFailureModes);
       const tools = norm(engine.profile.toolsConstraints);
-
+    
       let score = 0;
-
+    
       const multipleExternalInterfaces = includesAny(ext, [
-        "2",
-        "two",
-        "3",
-        "three",
-        "4",
-        "four",
-        "5",
-        "five",
-        "6",
-        "six",
-        "multiple",
-        "several"
+        "2", "two", "3", "three", "4", "four", "5", "five",
+        "6", "six", "7", "seven", "8", "eight", "9", "nine",
+        "10", "ten", "multiple", "several"
       ]);
-
-      if (mm === "hybrid" || mm === "internal" || mm === "outsourced") score += 1;
+    
+      const veryHighInterfaceCount = includesAny(ext, [
+        "6", "six", "7", "seven", "8", "eight", "9", "nine", "10", "ten"
+      ]);
+    
+      if (mm === "outsourced" || mm === "hybrid" || mm === "internal") score += 1;
       if (multipleExternalInterfaces) score += 2;
+      if (veryHighInterfaceCount) score += 1;
       if (dl === "high") score += 2;
       if (dl === "medium") score += 1;
-
+    
       if (
         includesAny(reality + " " + active, [
-          "none",
-          "ad hoc",
-          "paper only",
-          "inconsistent",
-          "not controlled",
-          "unusable",
-          "rework",
-          "no quality system",
+          "training records",
+          "training gaps",
           "weak capa",
-          "weak investigations"
+          "capa investigations",
+          "weak investigations",
+          "evidence gaps",
+          "retrieval",
+          "record gaps",
+          "ad hoc",
+          "inconsistent"
         ])
       ) {
-        score += 2;
+        score += 1;
       }
-
+    
       if (includesAny(mis, ["blocked", "misaligned", "disagreement", "contested"])) score += 1;
       if (includesAny(tools, ["part 11", "validated", "migration", "access"])) score += 1;
-
+    
+      if (veryHighInterfaceCount && dl === "high") return "High";
       if (multipleExternalInterfaces && score < 2) return "Medium";
       if (score >= 5) return "High";
       if (score >= 2) return "Medium";
@@ -1070,34 +1088,41 @@
     }
 
     function inferEvidenceTierHint() {
-      const p1 = norm(engine.profile.phase1Done);
       const ff = norm(engine.profile.forcingFunction);
+      const deadline = norm(engine.profile.deadline);
       const cr = norm(engine.profile.currentReality);
       const active = norm(engine.profile.activeFailureModes);
-
+      const p1 = norm(engine.profile.phase1Done);
+    
+      const shortWindow = includesAny(deadline + " " + ff, [
+        "2 weeks",
+        "two weeks",
+        "14 days",
+        "10 days",
+        "30 days"
+      ]);
+    
       if (hasCoreControlCollapse()) {
         return "Tier 2";
       }
-
+    
+      if (shortWindow) {
+        return "Tier 2";
+      }
+    
       if (
-        includesAny(ff + " " + p1, [
-          "prove",
-          "evidence",
-          "audit",
-          "inspection",
-          "diligence",
-          "records",
-          "show execution"
+        includesAny(p1 + " " + cr + " " + active, [
+          "prove execution over time",
+          "show execution over time",
+          "controlled",
+          "executed consistently",
+          "live process"
         ])
       ) {
         return "Tier 2-3";
       }
-
-      if (includesAny(cr + " " + active, ["controlled", "executed", "live process"])) {
-        return "Tier 2";
-      }
-
-      return "Tier 1-2";
+    
+      return "Tier 2";
     }
 
     function classifyFit() {
