@@ -959,7 +959,7 @@
         "nothing in place"
       ]);
     }
-
+    
     function hasReadinessFacingDefects() {
       const combined = norm(
         [
@@ -981,7 +981,9 @@
         "record gaps",
         "retrievability",
         "ad hoc",
-        "inconsistent"
+        "inconsistent",
+        "recurring deviations",
+        "deviations"
       ]);
     }
     
@@ -1009,17 +1011,17 @@
       if (engine.entryMode === "partner_insert") return "Partner Insert";
       if (engine.entryMode === "blueprint") return "Right-Sized GMP/QMS Blueprint";
     
-      // Collapse outranks readiness
+      // True system-floor collapse beats readiness packaging
       if (collapse) {
         return "Gap Repair Sprint";
       }
     
-      // Readiness event + named diligence-facing defects = readiness sprint
+      // External scrutiny + named readiness-facing defects = readiness sprint
       if (readinessEvent && readinessDefects) {
         return "Audit Readiness Sprint";
       }
     
-      // Readiness event without collapse still leans readiness
+      // External scrutiny by itself still leans readiness unless collapse is present
       if (readinessEvent) {
         return "Audit Readiness Sprint";
       }
@@ -1030,7 +1032,7 @@
     
       return "Right-Sized GMP/QMS Blueprint";
     }
-
+    
     function inferBandHint() {
       const mm = norm(engine.profile.manufacturingModel);
       const ext = norm(engine.profile.externalInterfaces);
@@ -1071,7 +1073,9 @@
           "retrieval",
           "record gaps",
           "ad hoc",
-          "inconsistent"
+          "inconsistent",
+          "recurring deviations",
+          "deviations"
         ])
       ) {
         score += 1;
@@ -1086,7 +1090,7 @@
       if (score >= 2) return "Medium";
       return "Low";
     }
-
+    
     function inferEvidenceTierHint() {
       const ff = norm(engine.profile.forcingFunction);
       const deadline = norm(engine.profile.deadline);
