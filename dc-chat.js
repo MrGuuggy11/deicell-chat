@@ -1342,35 +1342,37 @@
     function writeAnswerToAskedField(text) {
       const field = engine.askedField;
       if (!field) return false;
-
+    
       const value = cleanSentence(text);
       if (!value) return false;
-
+    
+      const numericOnly = /^\d+$/.test(value);
+    
       const tooThin =
-        value.length < 2 ||
+        (!numericOnly && value.length < 2) ||
         (looksLikeShortAffirmation(value) &&
           !["manufacturingModel", "plannedManufacturingChange"].includes(field));
-
+    
       if (tooThin) return false;
-
+    
       if (field === "manufacturingModel") {
         const inferred = inferManufacturingModel(value);
         engine.profile[field] = inferred || value;
         return true;
       }
-
+    
       if (field === "externalInterfaces") {
         engine.profile[field] = safeNumberWordToDigit(value);
         return true;
       }
-
+    
       if (field === "productType") {
         const cleaned = sanitizeProductType(value);
         if (!cleaned) return false;
         engine.profile[field] = cleaned;
         return true;
       }
-
+    
       engine.profile[field] = value;
       return true;
     }
