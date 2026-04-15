@@ -1,76 +1,134 @@
-(function(){
+(function () {
   "use strict";
 
   // Prevent double-init if Carrd injects twice
   if (window.__DC_CHAT_INIT__) return;
   window.__DC_CHAT_INIT__ = true;
 
-  function start(){
-    // Block on coarse pointers (your original behavior)
+  function start() {
+    // Preserve coarse-pointer block
     try {
-      if (window.matchMedia && window.matchMedia("(hover:none) and (pointer:coarse)").matches) return;
-    } catch(e){}
+      if (
+        window.matchMedia &&
+        window.matchMedia("(hover:none) and (pointer:coarse)").matches
+      ) {
+        return;
+      }
+    } catch (e) {}
 
     // ------------------------------
     // Config
     // ------------------------------
-    const ASSISTANT_NAME   = "Mendel AI";
-    const LOGO_URL         = "https://deicell.com/assets/images/image02.png?v=66696e40";
-    const CONSULT_URL      = "https://deicell.com/#contact";
-    const COMPANY_EMAIL    = "NJONES@DEICELL.COM";
+    const ASSISTANT_NAME = "Mendel AI";
+    const LOGO_URL = "https://deicell.com/assets/images/image02.png?v=66696e40";
+    const CONSULT_URL = "https://deicell.com/#contact";
+    const COMPANY_EMAIL = "NJONES@DEICELL.COM";
     const COMPANY_LINKEDIN = "https://www.linkedin.com/company/deicell/";
     const FOUNDER_LINKEDIN = "https://www.linkedin.com/in/ncjbio/";
-    const FOUNDER_NAME     = "Nathan Jones, Founder & Principal Consultant";
+    const FOUNDER_NAME = "Nathan Jones, Founder & Principal Consultant";
 
-    const LS = { hist: "dc_chat_hist_v15" }; // bump version
+    const LS = {
+      hist: "dc_chat_hist_v20"
+    };
+
+    const SS = {
+      engine: "dc_chat_engine_v20"
+    };
 
     // Google Forms integration
     const GOOGLE_FORM = {
-      action: "https://docs.google.com/forms/d/e/1FAIpQLSd-pxa0n6C1rZC0AExP8bc5VK-O6qDZWOyhHdqmy1ODVGUnNQ/formResponse",
+      action:
+        "https://docs.google.com/forms/d/e/1FAIpQLSd-pxa0n6C1rZC0AExP8bc5VK-O6qDZWOyhHdqmy1ODVGUnNQ/formResponse",
       fields: {
-        name:    "entry.511200028",
-        email:   "entry.1678436901",
-        phone:   "entry.1195889528",
+        name: "entry.511200028",
+        email: "entry.1678436901",
+        phone: "entry.1195889528",
         subject: "entry.205543377",
         message: "entry.1595874015"
       }
-    }
+    };
 
-    // Carrd-style Apps Script web app (recommended: most reliable lead capture)
-    // This should be the same endpoint your Carrd contact form posts to.
-    const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzsFDJWMft9PSHPyAGoFs5CljdxHkxlIZMBHm71rLIgQjNdWK9PKdLWEZNbX6A1dZt0/exec";
-;
+    // Apps Script endpoint
+    const WEBAPP_URL =
+      "https://script.google.com/macros/s/AKfycbzsFDJWMft9PSHPyAGoFs5CljdxHkxlIZMBHm71rLIgQjNdWK9PKdLWEZNbX6A1dZt0/exec";
 
     // ------------------------------
     // Ensure root exists
     // ------------------------------
     let root = document.getElementById("dc-chat-root");
-    if(!root){
+    if (!root) {
       root = document.createElement("div");
       root.id = "dc-chat-root";
-      root.setAttribute("aria-hidden","true");
+      root.setAttribute("aria-hidden", "true");
       document.body.appendChild(root);
     }
 
-    // If a previous version left markup behind, don't duplicate UI
-    if (document.getElementById("dc-chat-toggle") || document.getElementById("dc-chat-panel")) {
+    if (
+      document.getElementById("dc-chat-toggle") ||
+      document.getElementById("dc-chat-panel")
+    ) {
       return;
     }
 
     // ------------------------------
     // Helpers
     // ------------------------------
-    const esc = (s)=> String(s)
-      .replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))
-      .replace(/\n/g,"<br>");
+    const esc = (s) =>
+      String(s)
+        .replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))
+        .replace(/\n/g, "<br>");
 
-    const showToast = (msg)=>{
+    const stripHtml = (s) => String(s || "").replace(/<[^>]*>/g, " ");
+
+    const showToast = (msg) => {
       const t = document.getElementById("dc-toast");
-      if(!t) return;
+      if (!t) return;
       t.textContent = msg || "Saved";
       t.classList.add("show");
-      setTimeout(()=>t.classList.remove("show"), 1400);
+      setTimeout(() => t.classList.remove("show"), 1400);
     };
+
+    const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
+
+    const norm = (s) =>
+      String(s || "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const words = (s) =>
+      norm(s)
+        .split(" ")
+        .filter(Boolean);
+
+    const includesAny = (text, list) => {
+      const t = norm(text);
+      return list.some((k) => t.includes(norm(k)));
+    };
+
+    const sentenceCount = (s) =>
+      String(s || "")
+        .split(/[.!?]+/)
+        .map((x) => x.trim())
+        .filter(Boolean).length;
+
+    const isProbablyEmail = (s) =>
+      /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(String(s || ""));
+
+    const firstEmail = (s) => {
+      const m = String(s || "").match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+      return m ? m[0] : null;
+    };
+
+    const pickFirstMatch = (text, list) => {
+      const t = norm(text);
+      for (let i = 0; i < list.length; i++) {
+        if (t.includes(norm(list[i]))) return list[i];
+      }
+      return null;
+    };
+
+    const renderList = (items) => items.filter(Boolean).map((x) => `• ${x}`).join("<br>");
 
     // ------------------------------
     // Launcher button
@@ -78,7 +136,7 @@
     const btn = document.createElement("button");
     btn.id = "dc-chat-toggle";
     btn.type = "button";
-    btn.setAttribute("aria-label","Open chat");
+    btn.setAttribute("aria-label", "Open chat");
     btn.innerHTML = `
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M20 15.5c1.1-1 2-2.6 2-4.5C22 7 18.4 4 13.9 4 9.5 4 6 7 6 11c0 .7.1 1.3.3 1.9-1.5 1.2-3.1 2.1-4.3 2.4 1.5 0 3.6-.4 5.2-1.1 1.5 1.2 3.6 1.8 5.7 1.8.6 0 1.1-.1 1.7-.2.9.6 2.9 1.5 5.4 1.2-.8-.5-1.7-1.2-2-1.8z" fill="currentColor" opacity=".95"/>
@@ -99,138 +157,189 @@
       </div>
       <div id="dc-log" class="dc-watermark"></div>
       <form id="dc-form" autocomplete="off">
-        <input id="dc-input" type="text" placeholder="Ask about QMS, Regulatory, or AI..." autocomplete="off">
+        <input id="dc-input" type="text" placeholder="Describe your manufacturing, audit, diligence, or QMS pressure..." autocomplete="off">
         <button id="dc-send" type="submit">Send</button>
       </form>
       <div id="dc-toast" style="position:absolute;left:50%;transform:translateX(-50%);bottom:96px;z-index:9999;pointer-events:none;">Saved</div>
     `;
     root.appendChild(panel);
 
-    // Ensure toast positioning works even if Carrd CSS leaves the panel as position: static
     try {
-      if (window.getComputedStyle && window.getComputedStyle(panel).position === 'static') {
-        panel.style.position = 'relative';
+      if (window.getComputedStyle && window.getComputedStyle(panel).position === "static") {
+        panel.style.position = "relative";
       }
-    } catch(e){}
+    } catch (e) {}
 
-    const log      = document.getElementById("dc-log");
+    const log = document.getElementById("dc-log");
     const closeBtn = document.getElementById("dc-close");
-    const form     = document.getElementById("dc-form");
-    const input    = document.getElementById("dc-input");
+    const form = document.getElementById("dc-form");
+    const input = document.getElementById("dc-input");
 
     if (log) log.style.setProperty("--dc-watermark-url", `url('${LOGO_URL}')`);
 
     // ------------------------------
     // Open / close
     // ------------------------------
-    const setOpen = (open)=>{
+    const setOpen = (open) => {
       panel.style.display = open ? "flex" : "none";
-      try { root.setAttribute("aria-hidden", open ? "false" : "true"); } catch(e){}
-      if (open) setTimeout(()=>{ try{ input && input.focus(); }catch(e){} }, 0);
+      try {
+        root.setAttribute("aria-hidden", open ? "false" : "true");
+      } catch (e) {}
+      if (open) {
+        setTimeout(() => {
+          try {
+            input && input.focus();
+          } catch (e) {}
+        }, 0);
+      }
     };
 
-    const toggle = ()=> setOpen(panel.style.display !== "flex");
-    const close  = ()=> setOpen(false);
+    const toggle = () => setOpen(panel.style.display !== "flex");
+    const close = () => setOpen(false);
 
     btn.addEventListener("click", toggle);
     closeBtn.addEventListener("click", close);
-    document.addEventListener("keydown", e=>{ if(e.key === "Escape") close(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close();
+    });
 
     // ------------------------------
     // Chat history
     // ------------------------------
     let history = [];
-    try { history = JSON.parse(localStorage.getItem(LS.hist) || "[]") || []; } catch(e){ history = []; }
+    try {
+      history = JSON.parse(localStorage.getItem(LS.hist) || "[]") || [];
+    } catch (e) {
+      history = [];
+    }
 
     const bubble = (role, html) =>
-      `<div class="dc-msg ${role === 'user' ? 'user' : 'assistant'}"><div class="bubble">${html}</div></div>`;
+      `<div class="dc-msg ${role === "user" ? "user" : "assistant"}"><div class="bubble">${html}</div></div>`;
 
-    const render = ()=>{
-      try{
-        log.innerHTML = history.map(m => bubble(m.role, m.html)).join("");
+    const render = () => {
+      try {
+        log.innerHTML = history.map((m) => bubble(m.role, m.html)).join("");
         log.scrollTop = log.scrollHeight;
-      }catch(e){}
+      } catch (e) {}
     };
 
-    const save = ()=>{ try{ localStorage.setItem(LS.hist, JSON.stringify(history)); }catch(e){} };
+    const save = () => {
+      try {
+        localStorage.setItem(LS.hist, JSON.stringify(history));
+      } catch (e) {}
+    };
 
-    const add = (role, text)=>{
+    const add = (role, text) => {
       history.push({ role, html: esc(text) });
-      save(); render();
+      save();
+      render();
     };
 
-    const addHTML = (html)=>{
+    const addHTML = (html) => {
       history.push({ role: "assistant", html });
-      save(); render();
+      save();
+      render();
     };
 
-    // ------------------------------
-    // Lead capture submit (delegated; survives re-renders)
     // ------------------------------
     // Components
     // ------------------------------
-    function addCapture(){
+    function addCTA() {
+      const html = bubble(
+        "assistant",
+        `
+        <div class="dc-actions">
+          <a class="dc-btn"
+             href="${CONSULT_URL}"
+             target="_blank"
+             rel="noopener"
+             style="display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:40px;padding:0 14px;max-width:100%;text-decoration:none;white-space:nowrap;line-height:1;overflow:hidden;text-overflow:ellipsis;">
+            Book a consult
+          </a>
+        </div>
+      `
+      );
+      addHTML(html);
+    }
+
+    function addContact() {
+      const html = bubble(
+        "assistant",
+        `
+        <div>
+          <div style="margin-bottom:6px"><strong>Contact</strong></div>
+          <div>Email: <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a></div>
+          <div>Company: <a href="${COMPANY_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a></div>
+          <div>${FOUNDER_NAME}: <a href="${FOUNDER_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a></div>
+        </div>
+      `
+      );
+      addHTML(html);
+    }
+
+    function addCapture(prefill) {
       if (document.getElementById("dc-capture")) return;
 
-      const id = "dc-capture";
-      const html = bubble("assistant", `
-        <form id="${id}" style="display:grid;gap:6px;margin-top:6px">
+      const p = prefill || {};
+      const html = bubble(
+        "assistant",
+        `
+        <form id="dc-capture" style="display:grid;gap:6px;margin-top:6px">
           <div style="display:grid;gap:6px">
-            <input type="text"  name="name"    placeholder="Your name" required
+            <input type="text" name="name" placeholder="Your name" required value="${esc(p.name || "")}"
                    style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="email" name="email"   placeholder="Email" required
+            <input type="email" name="email" placeholder="Email" required value="${esc(p.email || "")}"
                    style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="tel"   name="phone"   placeholder="Phone (optional)"
+            <input type="tel" name="phone" placeholder="Phone (optional)" value="${esc(p.phone || "")}"
                    style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="text"  name="subject" placeholder="Subject"
+            <input type="text" name="subject" placeholder="Subject" value="${esc(p.subject || "DeiCell intake")}"
                    style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <textarea name="note" rows="2" placeholder="Message"
+            <textarea name="note" rows="3" placeholder="Message"
               style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
                      background:rgba(12,17,19,.85);color:#EAF2F5;line-height:1.3;
-                     height:84px;min-height:64px;max-height:160px;resize:vertical;"></textarea>
+                     height:96px;min-height:72px;max-height:180px;resize:vertical;">${esc(
+                       p.note || ""
+                     )}</textarea>
           </div>
           <div style="display:flex;gap:8px">
             <button type="submit" class="dc-btn">Submit Info</button>
             <a href="mailto:${COMPANY_EMAIL}" class="dc-btn secondary">Email Us</a>
           </div>
         </form>
-      `);
+      `
+      );
       addHTML(html);
     }
 
     // ------------------------------
-    // Lead capture submit (delegated; survives re-renders)
-    // Hot fix: remove fbzx/fvv/pageHistory and send only entry.* fields
+    // Lead capture submit
     // ------------------------------
-    function submitLeadCapture(f){
-      if(!f || f.id !== "dc-capture") return false;
+    function submitLeadCapture(f) {
+      if (!f || f.id !== "dc-capture") return false;
 
-      // Respect browser validation
       if (!f.checkValidity()) {
-        try { f.reportValidity(); } catch(e){}
+        try {
+          f.reportValidity();
+        } catch (e) {}
         showToast("Check fields");
         return false;
       }
 
-      // Prevent double-submit
-      try{
+      try {
         if (f.dataset && f.dataset.submitting === "1") return false;
         if (f.dataset) f.dataset.submitting = "1";
-      }catch(e){}
+      } catch (e) {}
 
       const fd = new FormData(f);
-      const name    = (fd.get("name")    || "").toString().trim();
-      const email   = (fd.get("email")   || "").toString().trim();
-      const phone   = (fd.get("phone")   || "").toString().trim();
+      const name = (fd.get("name") || "").toString().trim();
+      const email = (fd.get("email") || "").toString().trim();
+      const phone = (fd.get("phone") || "").toString().trim();
       const subject = (fd.get("subject") || "").toString().trim();
-      const note    = (fd.get("note")    || "").toString().trim();
+      const note = (fd.get("note") || "").toString().trim();
 
       let sent = false;
 
-      // -------------------------------------------------
-      // Method A (preferred): Carrd-style Apps Script POST
-      // This matches Carrd's own contact form strategy.
-      // -------------------------------------------------
+      // Method A: Apps Script
       try {
         const body = new URLSearchParams();
         body.set("name", name);
@@ -245,25 +354,23 @@
           fetch(WEBAPP_URL, {
             method: "POST",
             mode: "no-cors",
-            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+            },
             body: body.toString()
           });
-          // no-cors gives no response; assume best-effort
           sent = true;
         }
       } catch (e) {
         sent = false;
       }
 
-      // -------------------------------------------------
-      // Method B (secondary): direct Google Form submit
-      // -------------------------------------------------
+      // Method B: Google Form
       if (!sent) {
-        // Method B1: POST to hidden iframe
-        try{
+        try {
           const targetName = "dc-gform-target";
           let iframe = document.getElementById(targetName);
-          if(!iframe){
+          if (!iframe) {
             iframe = document.createElement("iframe");
             iframe.id = targetName;
             iframe.name = targetName;
@@ -277,11 +384,11 @@
           gf.target = targetName;
           gf.style.display = "none";
 
-          const setHidden = (n,v)=>{
+          const setHidden = (n, v) => {
             const i = document.createElement("input");
             i.type = "hidden";
             i.name = n;
-            i.value = (v == null) ? "" : String(v);
+            i.value = v == null ? "" : String(v);
             gf.appendChild(i);
           };
 
@@ -296,14 +403,17 @@
           gf.submit();
           sent = true;
 
-          setTimeout(()=>{ try{ gf.remove(); }catch(e){} }, 1500);
-        }catch(e){
+          setTimeout(() => {
+            try {
+              gf.remove();
+            } catch (e) {}
+          }, 1500);
+        } catch (e) {
           sent = false;
         }
 
-        // Method B2: fetch fallback
-        if(!sent){
-          try{
+        if (!sent) {
+          try {
             const body = new URLSearchParams();
             body.set(GOOGLE_FORM.fields.name, name);
             body.set(GOOGLE_FORM.fields.email, email);
@@ -315,381 +425,917 @@
             fetch(GOOGLE_FORM.action, {
               method: "POST",
               mode: "no-cors",
-              headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+              },
               body: body.toString()
             });
             sent = true;
-          }catch(e){
+          } catch (e) {
             sent = false;
           }
         }
       }
 
-      // Local fallback if nothing could be sent
-      if(!sent){
-        try{
+      if (!sent) {
+        try {
           const stash = JSON.parse(localStorage.getItem("dc_leads") || "[]");
-          stash.push({ ts: Date.now(), name, email, phone, subject, note, page: location.href });
+          stash.push({
+            ts: Date.now(),
+            name,
+            email,
+            phone,
+            subject,
+            note,
+            page: location.href
+          });
           localStorage.setItem("dc_leads", JSON.stringify(stash));
-        }catch(e){}
+        } catch (e) {}
       }
 
-      add("assistant", sent ? "Thanks, submitted. We will be in touch soon." : "Thanks, saved locally. We will reach out soon.");
+      add(
+        "assistant",
+        sent
+          ? "Thanks, submitted. We will be in touch soon."
+          : "Thanks, saved locally. We will reach out soon."
+      );
       showToast(sent ? "Submitted" : "Saved");
-      try { f.reset(); } catch(e){}
-      try { if (f.dataset) f.dataset.submitting = "0"; } catch(e){}
+      try {
+        f.reset();
+      } catch (e) {}
+      try {
+        if (f.dataset) f.dataset.submitting = "0";
+      } catch (e) {}
 
       return sent;
     }
 
-    // Delegated listener: survives log.innerHTML re-renders
-    if (log){
-      log.addEventListener("submit", (e)=>{
+    if (log) {
+      log.addEventListener("submit", (e) => {
         const f = e.target;
         if (!f || f.id !== "dc-capture") return;
         e.preventDefault();
         submitLeadCapture(f);
       });
     }
-    function addCTA(){
-      const html = bubble("assistant", `
-        <div class="dc-actions">
-          <a class="dc-btn"
-             href="${CONSULT_URL}"
-             target="_blank"
-             rel="noopener"
-             style="display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:40px;padding:0 14px;max-width:100%;text-decoration:none;white-space:nowrap;line-height:1;overflow:hidden;text-overflow:ellipsis;">
-            Book a consult
-          </a>
-        </div>
-      `);
-      addHTML(html);
-    }
-
-    function addContact(){
-      const html = bubble("assistant", `
-        <div>
-          <div style="margin-bottom:6px"><strong>Contact</strong></div>
-          <div>Email: <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a></div>
-          <div>Company: <a href="${COMPANY_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a></div>
-          <div>${FOUNDER_NAME}: <a href="${FOUNDER_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a></div>
-        </div>
-      `);
-      addHTML(html);
-    }
 
     // ------------------------------
-// Knowledge + smart routing (safe)
-// ------------------------------
-// Failsafe: if routing breaks, widget still works
-let reply = function(){
-  return { text: "Chat is loading. Please try again." };
-};
+    // Conversation Engine
+    // ------------------------------
+    const KB = {
+      mission:
+        "DeiCell Systems helps pre-commercial and early-clinical biotech and medtech teams stabilize manufacturing-facing quality work with phase-appropriate, minimum-necessary GMP and QMS structure.",
+      promise:
+        "The goal is not generic compliance theater. The goal is a bounded next step that fits stage, risk, manufacturing model, and regulatory exposure.",
+      scope:
+        "Typical work centers on Blueprint, Gap Repair Sprint, Audit Readiness Sprint, or Partner Insert support.",
+      exclusions:
+        "DeiCell is not positioned as enterprise-scale QMS transformation, certification-only optics, long-term staff augmentation, or paper-only compliance."
+    };
 
-try {
-  const SS = { state: "dc_chat_state_v2" };
-  let state = { flow: null, step: 0, topic: null, reg: { cls: null, region: null, modality: null }, stage: null, goal: null, intendedUse: null };
-  try { state = Object.assign(state, JSON.parse(sessionStorage.getItem(SS.state) || "{}")); } catch(e){}
-  const saveState = ()=>{ try{ sessionStorage.setItem(SS.state, JSON.stringify(state)); }catch(e){} };
+    const FIELD_ORDER = [
+      "forcingFunction",
+      "deadline",
+      "consequence",
+      "productType",
+      "stage",
+      "regulatoryExposure",
+      "manufacturingModel",
+      "plannedManufacturingChange",
+      "externalInterfaces",
+      "decisionMaker",
+      "activeFailureModes",
+      "currentReality",
+      "toolsConstraints",
+      "phase1Done",
+      "explicitDeferrals",
+      "misalignment",
+      "availableArtifacts"
+    ];
 
-  const KB2 = {
-    identity:
-      "DeiCell Systems helps biotech and medtech teams build inspection-ready operations with right-sized, traceable quality systems and regulatory execution.",
-    founder:
-      "Nathan Jones is the Founder & Principal Consultant of DeiCell Systems. He focuses on inspection readiness, ISO 13485-aligned QMS architecture, CAPA discipline, labeling/submission support, and microbiology-aware controls (including USP <61>/<62>/<71> contexts) for early and growth-stage teams.",
-    promise:
-      "The goal is to keep teams fast without creating audit debt: pragmatic systems, defensible decisions, and evidence that holds up under scrutiny."
-  };
+    const REQUIRED_MIN_FIELDS = [
+      "forcingFunction",
+      "manufacturingModel",
+      "decisionMaker",
+      "activeFailureModes"
+    ];
 
-  const KW = {
-    contact: ["contact","reach","email","call","talk","human","agent","consult","book","meeting"],
-    about: ["about","who are you","what is deicell","what do you do","deicell"],
-    founder: ["nathan","founder","who is nathan","your background","experience"],
-    why: ["why","why choose","why deicell","different","value","advantage"],
-    qms: ["qms","iso","13485","quality system","sop","doc control","document control","training","capa","deviation","change control","risk","audit","inspection"],
-    reg: ["regulatory","fda","510k","510(k)","de novo","denovo","pma","submission","label","labeling","mdr","notified body","claims","intended use","pre-sub","presub","pre sub"],
-    ai: ["ai","ml","machine learning","samd","software as a medical device","embedded ai","model","dataset","bias","validation","governance","samd"],
-    more: ["more","details","elaborate","expand","tell me more"]
-  };
+    const stateDefault = {
+      mode: "triage", // triage, collecting, complete, declined
+      entryMode: null, // blueprint, gap_repair, audit_readiness, partner_insert, general, contact
+      askedField: null,
+      repeatCount: 0,
+      lastAssistantType: null,
+      contactOffered: false,
+      ctaOffered: false,
+      captureOffered: false,
+      profile: {
+        forcingFunction: "",
+        deadline: "",
+        consequence: "",
+        productType: "",
+        stage: "",
+        regulatoryExposure: "",
+        manufacturingModel: "",
+        plannedManufacturingChange: "",
+        externalInterfaces: "",
+        decisionMaker: "",
+        activeFailureModes: "",
+        currentReality: "",
+        toolsConstraints: "",
+        phase1Done: "",
+        explicitDeferrals: "",
+        misalignment: "",
+        availableArtifacts: "",
+        email: ""
+      },
+      notes: {
+        fit: null,
+        offer: null,
+        bandHint: null,
+        evidenceTierHint: null,
+        declineReason: null
+      }
+    };
 
-  const norm = (s)=> (s || "").toLowerCase().replace(/\s+/g," ").trim();
-  const hasAny = (s, list)=> list.some(k => s.includes(k));
-
-  function extract(qRaw){
-    const q = norm(qRaw);
-
-    const region =
-      hasAny(q, [" eu"," europe"," mdr"," european"]) ? "EU" :
-      hasAny(q, [" us"," u.s"," usa"," united states"," fda"]) ? "US" : null;
-
-    const cls =
-      hasAny(q, ["class iii","class 3"," class iii"," class 3"]) ? "Class III" :
-      hasAny(q, ["class ii","class 2"," class ii"," class 2"]) ? "Class II" : null;
-
-    const stage =
-      hasAny(q, ["postmarket","commercial","launched"]) ? "postmarket" :
-      hasAny(q, ["clinical","trial","ide","pivotal"]) ? "clinical" :
-      hasAny(q, ["preclinical","r&d","prototype","bench"]) ? "preclinical" :
-      hasAny(q, ["seed","series a","startup","early stage","early"]) ? "early" : null;
-
-    const modality =
-      hasAny(q, ["ivd","in vitro","diagnostic"]) ? "IVD" :
-      hasAny(q, ["implant"]) ? "implant" :
-      hasAny(q, ["samd","software as a medical device","software"]) ? "SaMD" :
-      hasAny(q, ["embedded","embedded ai","on device","edge","firmware"]) ? "Embedded" :
-      hasAny(q, ["ai","ml","machine learning","model"]) ? "AI/ML" : null;
-
-    const goal =
-      hasAny(q, ["audit","inspection","inspection ready","audit ready"]) ? "audit readiness" :
-      hasAny(q, ["submission","510k","pma","de novo","presub","pre-sub","pre sub"]) ? "submission" :
-      hasAny(q, ["qms","iso","13485","sop","capa","doc control","document control"]) ? "qms build" :
-      null;
-
-    return { q, region, cls, stage, modality, goal };
-  }
-
-  function scoreIntent(q){
-    const scores = { contact:0, about:0, founder:0, why:0, qms:0, reg:0, ai:0, more:0, unknown:0 };
-
-    if (hasAny(q, KW.contact)) scores.contact += 4;
-    if (hasAny(q, KW.about))   scores.about   += 3;
-    if (hasAny(q, KW.founder)) scores.founder += 3;
-    if (hasAny(q, KW.why))     scores.why     += 2;
-
-    if (hasAny(q, KW.qms))     scores.qms     += 4;
-    if (hasAny(q, KW.reg))     scores.reg     += 4;
-    if (hasAny(q, KW.ai))      scores.ai      += 4;
-
-    if (hasAny(q, KW.more))    scores.more    += 1;
-
-    if (state.topic === "qms") scores.qms += 1;
-    if (state.topic === "reg") scores.reg += 1;
-    if (state.topic === "ai")  scores.ai  += 1;
-
-    let best = "unknown", bestV = -1;
-    Object.keys(scores).forEach(k => { if (scores[k] > bestV){ bestV = scores[k]; best = k; } });
-    return best;
-  }
-
-  function nextQuestionFor(topic){
-    if (topic === "qms") return "What stage are you in (early, preclinical, clinical, postmarket) and what standard or pressure is driving this (ISO 13485, FDA QSR, investor diligence, upcoming audit)?";
-    if (topic === "reg") return "What region (US or EU) and device class (II or III)? If you know the modality (IVD, implant, SaMD), include that too.";
-    if (topic === "ai")  return "Is this SaMD or embedded AI, and what’s the intended use in one sentence? Also, what’s your main validation constraint (data volume, labeling, drift, bias risk, timeline)?";
-    return "What are you building, and what deadline or pressure is forcing the decision right now?";
-  }
-
-  function handleRegFlow(info){
-    if (state.flow !== "reg_triage"){
-      state.flow = "reg_triage";
-      state.step = 0;
-      state.topic = "reg";
+    let engine = {};
+    try {
+      engine = Object.assign({}, stateDefault, JSON.parse(sessionStorage.getItem(SS.engine) || "{}"));
+      engine.profile = Object.assign({}, stateDefault.profile, engine.profile || {});
+      engine.notes = Object.assign({}, stateDefault.notes, engine.notes || {});
+    } catch (e) {
+      engine = JSON.parse(JSON.stringify(stateDefault));
     }
 
-    if (info.region) state.reg.region = info.region;
-    if (info.cls) state.reg.cls = info.cls;
-    if (info.modality) state.reg.modality = info.modality;
-    if (info.stage) state.stage = info.stage;
-    if (info.goal) state.goal = info.goal;
+    const saveEngine = () => {
+      try {
+        sessionStorage.setItem(SS.engine, JSON.stringify(engine));
+      } catch (e) {}
+    };
 
-    if (!state.reg.region || !state.reg.cls){
-      saveState();
-      return { text: "To route correctly, I need two inputs: region (US or EU) and device class (II or III).", capture: false };
+    const resetEngine = () => {
+      engine = JSON.parse(JSON.stringify(stateDefault));
+      saveEngine();
+    };
+
+    const FIELD_PROMPTS = {
+      forcingFunction:
+        "What is the forcing function right now, such as audit, investor diligence, tech transfer, recurring deviations, submission pressure, or scale-up?",
+      deadline:
+        "What is the deadline or target date?",
+      consequence:
+        "What happens if that date slips?",
+      productType:
+        "What are you building, in plain language?",
+      stage:
+        "What stage are you in right now, such as pre-seed, Series A, preclinical, early clinical, or commercializing?",
+      regulatoryExposure:
+        "What regulatory or customer scrutiny is in play, such as FDA, ISO 13485, MDR, diligence, customer audit, or internal inspection pressure?",
+      manufacturingModel:
+        "What is the current manufacturing model: outsourced, hybrid, or internal?",
+      plannedManufacturingChange:
+        "What changes are planned in the next 6 months, if any?",
+      externalInterfaces:
+        "How many CDMOs, CMOs, critical suppliers, or external labs are meaningfully in scope?",
+      decisionMaker:
+        "Who is the single accountable decision-maker for scope, approvals, and sign-off?",
+      activeFailureModes:
+        "What is actively threatening delivery now? You can list the top 1 to 3 items.",
+      currentReality:
+        "What exists today for core controls like document control, training, deviations, CAPA, and change control? A plain-language answer is enough.",
+      toolsConstraints:
+        "What tools or constraints matter here, such as shared drives, SharePoint, eQMS, Part 11 expectations, access limits, or migration issues?",
+      phase1Done:
+        "In one sentence, what would Phase 1 done mean for this engagement?",
+      explicitDeferrals:
+        "What is clearly not part of Phase 1 right now?",
+      misalignment:
+        "Where are Quality, Manufacturing, Operations, leadership, or external partners misaligned, and what decisions are blocked?",
+      availableArtifacts:
+        "What can you provide now, such as product summary, manufacturing flow, SOP/process list, owner list, known issues list, audit date, or current templates?"
+    };
+
+    const EXAMPLES = {
+      forcingFunction:
+        'Example: "Investor diligence in 4 weeks, with recurring document-control failures creating concern."',
+      manufacturingModel:
+        'Example: "Hybrid. One CDMO for fill-finish, internal release coordination, and one external test lab."',
+      decisionMaker:
+        'Example: "VP Operations owns scope approval; QA manager and program lead execute."',
+      activeFailureModes:
+        'Example: "Change churn, ad hoc training records, weak CAPA investigations."',
+      phase1Done:
+        'Example: "Core document control, training, deviations, CAPA, and change control are defined, owned, and being executed consistently for the current manufacturing model."',
+      availableArtifacts:
+        'Example: "Product summary, SOP list, audit date, current templates, and issue tracker available now."'
+    };
+
+    const declineSignals = {
+      falsification: [
+        "backdate",
+        "fabricate",
+        "paper compliance",
+        "paper only",
+        "fake records",
+        "make it look compliant",
+        "appearance only"
+      ],
+      enterprise: [
+        "enterprise-wide qms",
+        "replace entire quality department",
+        "global qms transformation",
+        "full enterprise deployment",
+        "company-wide qms overhaul"
+      ],
+      certificationOnly: [
+        "certification only",
+        "just need iso certificate",
+        "just need audit optics",
+        "pass audit without changing anything"
+      ],
+      staffing: [
+        "full time qa resource",
+        "staff augmentation",
+        "fractional qa department forever",
+        "replace qa head"
+      ]
+    };
+
+    const fitHelpers = {
+      deadlinePressure(text) {
+        const t = norm(text);
+        if (
+          includesAny(t, ["2 weeks", "two weeks", "14 days", "10 days", "30 days", "next month", "45 days"])
+        ) {
+          return "high";
+        }
+        if (includesAny(t, ["60 days", "90 days", "quarter"])) return "medium";
+        return null;
+      }
+    };
+
+    function lastUserMessage() {
+      for (let i = history.length - 1; i >= 0; i--) {
+        if (history[i].role === "user") return stripHtml(history[i].html);
+      }
+      return "";
     }
 
-    if (state.step < 1){
-      state.step = 1; saveState();
-      return { text: `Got it: ${state.reg.cls} • ${state.reg.region}. What’s the modality (IVD, implant, SaMD) and intended use in one sentence?`, capture: false };
+    function recentUserMessages(limit) {
+      const out = [];
+      for (let i = history.length - 1; i >= 0 && out.length < (limit || 4); i--) {
+        if (history[i].role === "user") out.push(stripHtml(history[i].html));
+      }
+      return out.reverse();
     }
 
-    const both = `${state.reg.cls} • ${state.reg.region}`;
-    let plan = "";
-
-    if (state.reg.region === "US" && state.reg.cls === "Class II"){
-      plan = `${both}: likely 510(k) unless claims are novel. Next sequence: intended use/claims discipline, predicate strategy, bench/biocomp/software test plan, labeling consistency, and a short Pre-Sub if novelty or clinical questions exist.`;
-    } else if (state.reg.region === "US" && state.reg.cls === "Class III"){
-      plan = `${both}: PMA-style evidence planning. Emphasis: clinical strategy, traceability, and inspection-ready documentation long before submission.`;
-    } else if (state.reg.region === "EU"){
-      plan = `${both}: MDR route. Start with GSPR mapping, clinical evaluation strategy, PMS/PMCF planning, and technical documentation structure aligned to claims.`;
-    } else {
-      plan = `${both}: I can outline a stage-appropriate evidence path once I know modality and intended use.`;
+    function looksLikeShortAffirmation(text) {
+      return includesAny(text, ["yes", "yeah", "yep", "correct", "right", "ok", "okay", "sure"]);
     }
 
-    state.step = 2; saveState();
-    return { text: `${plan}\n\nIf you tell me your stage (early, preclinical, clinical, postmarket), I’ll narrow it to a minimum viable evidence package.`, showCTA: true, showContact: true, capture: true };
-  }
-
-  function handleQmsFlow(info){
-    state.flow = "qms_triage";
-    state.topic = "qms";
-    if (info.stage) state.stage = info.stage;
-    if (info.goal) state.goal = info.goal;
-    saveState();
-
-    const stage = state.stage || "your current stage";
-    const msg =
-      `QMS, right-sized: control without bureaucracy.\n\nAt ${stage}, the highest-leverage core is typically: document control, training, deviation/nonconformance handling, CAPA, change control, and risk management. Then scale design controls, supplier controls, validation, and internal audits as milestones demand.\n\nWhat milestone is driving this (investor diligence, audit, submission, scale-up, postmarket complaints)?`;
-
-    return { text: msg, showCTA: true };
-  }
-
-  // ------------------------------
-  // AI flow (loop-proof)
-  // ------------------------------
-  function parseAiKind(q){
-    const s = norm(q);
-    if (hasAny(s, ["samd","sa md","software as a medical device"])) return "SaMD";
-    if (hasAny(s, ["embedded","embedded ai","on device","edge","firmware"])) return "Embedded";
-    return null;
-  }
-
-  function parseIntendedUse(qRaw){
-    const s = (qRaw || "").trim();
-    const w = s.split(/\s+/).filter(Boolean).length;
-    if (w >= 7) return s;
-    if (/\b(to|for|so that|in order to)\b/i.test(s) && w >= 5) return s;
-    return null;
-  }
-
-  function handleAiFlow(info, qRaw){
-    if (state.flow !== "ai_triage"){
-      state.flow = "ai_triage";
-      state.step = 0;
-      state.topic = "ai";
+    function looksLikeReset(text) {
+      return includesAny(text, ["start over", "restart", "reset", "clear"]);
     }
 
-    if (info.stage) state.stage = info.stage;
-    if (info.goal) state.goal = info.goal;
+    function looksLikeContact(text) {
+      return includesAny(text, [
+        "contact",
+        "email you",
+        "talk to someone",
+        "talk to a human",
+        "book a consult",
+        "book consult",
+        "consult",
+        "reach out",
+        "call me"
+      ]);
+    }
 
-    // STEP 0: determine kind (SaMD vs Embedded)
-    if (state.step === 0){
-      const kind = parseAiKind(qRaw) || (info.modality === "SaMD" ? "SaMD" : (info.modality === "Embedded" ? "Embedded" : null));
-      if (kind){
-        state.reg.modality = kind;
-        state.step = 1;
-        saveState();
-        return {
-          text: `Got it: ${kind}. What’s the intended use in one sentence (who it helps, what decision/action it supports, and the setting)?`,
-          showCTA: true
-        };
+    function looksLikeAbout(text) {
+      return includesAny(text, [
+        "what is deicell",
+        "what do you do",
+        "who are you",
+        "about deicell",
+        "about you"
+      ]);
+    }
+
+    function looksLikePricing(text) {
+      return includesAny(text, ["price", "pricing", "cost", "budget", "quote", "estimate", "range"]);
+    }
+
+    function looksLikeExampleRequest(text) {
+      return includesAny(text, ["example", "show me an example", "sample answer", "what do you mean"]);
+    }
+
+    function detectDecline(text) {
+      if (includesAny(text, declineSignals.falsification)) {
+        return "Requests to fabricate, backdate, or paper compliance are out of scope.";
+      }
+      if (includesAny(text, declineSignals.enterprise)) {
+        return "Enterprise-scale transformation is outside the normal DeiCell operating scope.";
+      }
+      if (includesAny(text, declineSignals.certificationOnly)) {
+        return "Certification-only or optics-only work is not the intended fit.";
+      }
+      if (includesAny(text, declineSignals.staffing)) {
+        return "Long-term staff augmentation is outside the intended DeiCell model.";
+      }
+      return null;
+    }
+
+    function inferStage(text) {
+      const t = norm(text);
+      if (includesAny(t, ["pre-seed", "pre seed"])) return "pre-seed";
+      if (includesAny(t, ["seed"])) return "seed";
+      if (includesAny(t, ["series a"])) return "series a";
+      if (includesAny(t, ["series b"])) return "series b";
+      if (includesAny(t, ["preclinical", "r&d", "prototype", "bench"])) return "preclinical";
+      if (includesAny(t, ["clinical", "early clinical", "ide", "trial"])) return "clinical";
+      if (includesAny(t, ["commercial", "postmarket", "launched"])) return "commercial/postmarket";
+      return "";
+    }
+
+    function inferManufacturingModel(text) {
+      const t = norm(text);
+      if (includesAny(t, ["outsourced", "all outsourced", "cdmo only", "cmo only"])) return "outsourced";
+      if (includesAny(t, ["hybrid"])) return "hybrid";
+      if (includesAny(t, ["internal", "in-house", "in house"])) return "internal";
+      return "";
+    }
+
+    function inferEntryMode(text) {
+      const t = norm(text);
+
+      if (looksLikeContact(t)) return "contact";
+
+      if (
+        includesAny(t, [
+          "audit",
+          "inspection",
+          "diligence",
+          "investor diligence",
+          "customer audit",
+          "site audit",
+          "mock audit",
+          "readiness"
+        ])
+      ) {
+        return "audit_readiness";
       }
 
-      saveState();
-      return {
-        text:
-          "AI/ML: the fastest wins come from disciplined evidence.\n\n" +
-          "Start with data lineage, acceptance criteria tied to intended use, validation design (splits, drift, edge cases), and risk controls (bias, failure modes, human factors if relevant).\n\n" +
-          "First: is this SaMD (software is the product) or embedded AI (model inside a device/system)?",
-        showCTA: true
-      };
+      if (
+        includesAny(t, [
+          "deviation",
+          "capa",
+          "doc control",
+          "document control",
+          "training gaps",
+          "change control",
+          "supplier oversight",
+          "gap",
+          "fix",
+          "repair",
+          "unstable",
+          "breakdown",
+          "complaints"
+        ])
+      ) {
+        return "gap_repair";
+      }
+
+      if (
+        includesAny(t, [
+          "blueprint",
+          "phase 1",
+          "minimum compliant",
+          "minimum necessary",
+          "qms build",
+          "qms architecture",
+          "build qms",
+          "what should exist",
+          "what belongs now"
+        ])
+      ) {
+        return "blueprint";
+      }
+
+      if (
+        includesAny(t, [
+          "partner insert",
+          "specialist support",
+          "subcontract",
+          "prime consultant",
+          "workstream support",
+          "bounded workstream"
+        ])
+      ) {
+        return "partner_insert";
+      }
+
+      if (
+        includesAny(t, [
+          "we need help",
+          "not sure",
+          "figuring out scope",
+          "qms",
+          "regulatory",
+          "manufacturing pressure",
+          "quality pressure",
+          "systems are breaking"
+        ])
+      ) {
+        return "general";
+      }
+
+      return null;
     }
 
-    // STEP 1: capture intended use
-    if (state.step === 1){
-      const intended = parseIntendedUse(qRaw);
-      if (!intended){
-        saveState();
+    function inferOfferFromProfile() {
+      if (engine.entryMode === "audit_readiness") return "Audit Readiness Sprint";
+      if (engine.entryMode === "gap_repair") return "Gap Repair Sprint";
+      if (engine.entryMode === "partner_insert") return "Partner Insert";
+      if (engine.entryMode === "blueprint") return "Right-Sized GMP/QMS Blueprint";
+
+      const ff = norm(engine.profile.forcingFunction);
+      const af = norm(engine.profile.activeFailureModes);
+      const cr = norm(engine.profile.currentReality);
+
+      if (includesAny(ff, ["audit", "inspection", "diligence"])) return "Audit Readiness Sprint";
+      if (
+        includesAny(af + " " + cr, [
+          "deviation",
+          "capa",
+          "doc control",
+          "document control",
+          "training",
+          "change control",
+          "supplier",
+          "complaint"
+        ])
+      ) {
+        return "Gap Repair Sprint";
+      }
+
+      return "Right-Sized GMP/QMS Blueprint";
+    }
+
+    function inferBandHint() {
+      const mm = norm(engine.profile.manufacturingModel);
+      const ext = norm(engine.profile.externalInterfaces);
+      const dl = fitHelpers.deadlinePressure(engine.profile.deadline + " " + engine.profile.forcingFunction);
+      const mis = norm(engine.profile.misalignment);
+      const reality = norm(engine.profile.currentReality);
+      const tools = norm(engine.profile.toolsConstraints);
+
+      let score = 0;
+
+      if (mm === "hybrid" || mm === "internal") score += 1;
+      if (includesAny(ext, ["2", "two", "multiple", "several"])) score += 1;
+      if (dl === "high") score += 2;
+      if (dl === "medium") score += 1;
+      if (
+        includesAny(reality, [
+          "none",
+          "ad hoc",
+          "paper only",
+          "inconsistent",
+          "not controlled",
+          "unusable",
+          "rework"
+        ])
+      ) {
+        score += 1;
+      }
+      if (includesAny(mis, ["blocked", "misaligned", "disagreement", "contested"])) score += 1;
+      if (includesAny(tools, ["part 11", "validated", "migration", "access"])) score += 1;
+
+      if (score >= 4) return "High";
+      if (score >= 2) return "Medium";
+      return "Low";
+    }
+
+    function inferEvidenceTierHint() {
+      const p1 = norm(engine.profile.phase1Done);
+      const ff = norm(engine.profile.forcingFunction);
+      const cr = norm(engine.profile.currentReality);
+
+      if (
+        includesAny(ff + " " + p1, [
+          "prove",
+          "evidence",
+          "audit",
+          "inspection",
+          "diligence",
+          "records",
+          "show execution"
+        ])
+      ) {
+        return "Tier 2-3";
+      }
+
+      if (includesAny(cr, ["controlled", "executed", "live process"])) return "Tier 2";
+      return "Tier 1-2";
+    }
+
+    function classifyFit() {
+      const decline = detectDecline(
+        [
+          engine.profile.forcingFunction,
+          engine.profile.consequence,
+          engine.profile.currentReality,
+          engine.profile.toolsConstraints,
+          engine.profile.misalignment
+        ].join(" ")
+      );
+
+      if (decline) {
+        engine.notes.declineReason = decline;
+        return "Out-of-Scope";
+      }
+
+      const missingRequired = REQUIRED_MIN_FIELDS.filter(
+        (k) => !String(engine.profile[k] || "").trim()
+      );
+
+      if (missingRequired.length === 0) {
+        if (!engine.profile.regulatoryExposure || !engine.profile.productType) return "Conditional";
+        return "Good-Fit";
+      }
+
+      if (missingRequired.length <= 2) return "Conditional";
+      return null;
+    }
+
+    function nextMissingField() {
+      for (let i = 0; i < FIELD_ORDER.length; i++) {
+        const k = FIELD_ORDER[i];
+        if (!String(engine.profile[k] || "").trim()) return k;
+      }
+      return null;
+    }
+
+    function minimalIntakeReached() {
+      return REQUIRED_MIN_FIELDS.every((k) => String(engine.profile[k] || "").trim());
+    }
+
+    function canProduceSummary() {
+      return minimalIntakeReached() && !!engine.profile.productType;
+    }
+
+    function setProfileIfEmpty(key, value) {
+      if (!engine.profile[key] && value) engine.profile[key] = value;
+    }
+
+    function harvestFromText(text) {
+      const t = String(text || "");
+      const n = norm(t);
+
+      const email = firstEmail(t);
+      if (email) engine.profile.email = email;
+
+      const stage = inferStage(t);
+      if (stage) setProfileIfEmpty("stage", stage);
+
+      const mm = inferManufacturingModel(t);
+      if (mm) setProfileIfEmpty("manufacturingModel", mm);
+
+      if (
+        includesAny(n, [
+          "audit",
+          "inspection",
+          "diligence",
+          "investor",
+          "customer quality",
+          "iso 13485",
+          "fda",
+          "mdr",
+          "ivdr",
+          "510k",
+          "510(k)",
+          "pma",
+          "pre-sub",
+          "presub"
+        ])
+      ) {
+        setProfileIfEmpty("regulatoryExposure", t);
+      }
+
+      if (
+        includesAny(n, [
+          "deviation",
+          "capa",
+          "change control",
+          "training",
+          "doc control",
+          "document control",
+          "supplier oversight",
+          "complaint"
+        ])
+      ) {
+        setProfileIfEmpty("activeFailureModes", t);
+      }
+
+      if (
+        includesAny(n, [
+          "shared drive",
+          "sharepoint",
+          "eqms",
+          "edms",
+          "part 11",
+          "lims",
+          "mes",
+          "migration",
+          "validated",
+          "access"
+        ])
+      ) {
+        setProfileIfEmpty("toolsConstraints", t);
+      }
+
+      if (
+        includesAny(n, [
+          "device",
+          "diagnostic",
+          "ivd",
+          "software",
+          "samd",
+          "implant",
+          "assay",
+          "therapeutic",
+          "biologic",
+          "drug product",
+          "drug substance"
+        ])
+      ) {
+        setProfileIfEmpty("productType", t);
+      }
+
+      if (
+        includesAny(n, [
+          "phase 1",
+          "done means",
+          "phase one",
+          "explicitly deferred",
+          "deferred",
+          "not included"
+        ])
+      ) {
+        setProfileIfEmpty("phase1Done", t);
+      }
+
+      if (
+        includesAny(n, ["ceo", "founder", "vp", "director", "head of quality", "operations lead", "decision maker"])
+      ) {
+        setProfileIfEmpty("decisionMaker", t);
+      }
+
+      if (
+        includesAny(n, [
+          "cdmo",
+          "cmo",
+          "supplier",
+          "external lab",
+          "testing lab",
+          "fill finish",
+          "fill-finish"
+        ])
+      ) {
+        setProfileIfEmpty("externalInterfaces", t);
+      }
+
+      if (
+        includesAny(n, [
+          "deadline",
+          "by ",
+          "in 2 weeks",
+          "in two weeks",
+          "in 30 days",
+          "in 45 days",
+          "next month",
+          "this quarter"
+        ])
+      ) {
+        setProfileIfEmpty("deadline", t);
+      }
+
+      if (
+        includesAny(n, [
+          "if we miss",
+          "miss it",
+          "delay means",
+          "consequence",
+          "slip",
+          "lose",
+          "investor concern",
+          "submission risk"
+        ])
+      ) {
+        setProfileIfEmpty("consequence", t);
+      }
+    }
+
+    function writeAnswerToAskedField(text) {
+      const field = engine.askedField;
+      if (!field) return false;
+
+      const value = String(text || "").trim();
+      if (!value) return false;
+
+      const tooThin =
+        value.length < 3 ||
+        (looksLikeShortAffirmation(value) && !["manufacturingModel"].includes(field));
+
+      if (tooThin) return false;
+
+      if (field === "manufacturingModel") {
+        const inferred = inferManufacturingModel(value);
+        engine.profile[field] = inferred || value;
+        return true;
+      }
+
+      engine.profile[field] = value;
+      return true;
+    }
+
+    function buildCompactSummaryHTML() {
+      const p = engine.profile;
+      const fit = engine.notes.fit || classifyFit() || "Conditional";
+      const offer = engine.notes.offer || inferOfferFromProfile();
+      const band = engine.notes.bandHint || inferBandHint();
+      const tier = engine.notes.evidenceTierHint || inferEvidenceTierHint();
+
+      const rows = [
+        p.forcingFunction ? `<div><strong>Forcing function:</strong> ${esc(p.forcingFunction)}</div>` : "",
+        p.deadline ? `<div><strong>Deadline:</strong> ${esc(p.deadline)}</div>` : "",
+        p.productType ? `<div><strong>Product / program:</strong> ${esc(p.productType)}</div>` : "",
+        p.stage ? `<div><strong>Stage:</strong> ${esc(p.stage)}</div>` : "",
+        p.regulatoryExposure
+          ? `<div><strong>Regulatory / scrutiny:</strong> ${esc(p.regulatoryExposure)}</div>`
+          : "",
+        p.manufacturingModel
+          ? `<div><strong>Manufacturing model:</strong> ${esc(p.manufacturingModel)}</div>`
+          : "",
+        p.decisionMaker
+          ? `<div><strong>Decision-maker:</strong> ${esc(p.decisionMaker)}</div>`
+          : "",
+        p.activeFailureModes
+          ? `<div><strong>Active failure modes:</strong> ${esc(p.activeFailureModes)}</div>`
+          : ""
+      ]
+        .filter(Boolean)
+        .join("");
+
+      return `
+        <div>
+          <div style="margin-bottom:8px"><strong>DeiCell intake summary</strong></div>
+          <div><strong>Fit classification:</strong> ${esc(fit)}</div>
+          <div><strong>Likely engagement path:</strong> ${esc(offer)}</div>
+          <div><strong>Probable effort band:</strong> ${esc(band)}</div>
+          <div><strong>Probable evidence tier:</strong> ${esc(tier)}</div>
+          <div style="margin-top:8px;display:grid;gap:5px">${rows}</div>
+        </div>
+      `;
+    }
+
+    function buildMissingInputsText() {
+      const missing = FIELD_ORDER.filter((k) => !String(engine.profile[k] || "").trim());
+      if (!missing.length) return "I have enough for a bounded first-pass conversation.";
+      const labels = missing.slice(0, 4).map((k) => {
+        const labelMap = {
+          forcingFunction: "forcing function",
+          deadline: "deadline",
+          consequence: "consequence of delay",
+          productType: "product or program",
+          stage: "stage",
+          regulatoryExposure: "regulatory / audit exposure",
+          manufacturingModel: "manufacturing model",
+          plannedManufacturingChange: "next 6-month manufacturing change",
+          externalInterfaces: "external interfaces",
+          decisionMaker: "decision-maker",
+          activeFailureModes: "active failure modes",
+          currentReality: "current system reality",
+          toolsConstraints: "tools and constraints",
+          phase1Done: "Phase 1 definition",
+          explicitDeferrals: "explicit deferrals",
+          misalignment: "stakeholder misalignment",
+          availableArtifacts: "available artifacts"
+        };
+        return labelMap[k] || k;
+      });
+      return "Still missing or thin: " + labels.join(", ") + ".";
+    }
+
+    function explainOffer(offer) {
+      if (offer === "Right-Sized GMP/QMS Blueprint") {
+        return "This looks more like a bounded architecture and Phase 1 definition problem than a narrow remediation problem.";
+      }
+      if (offer === "Gap Repair Sprint") {
+        return "This looks like a specific control breakdown that is threatening delivery and needs a time-boxed repair.";
+      }
+      if (offer === "Audit Readiness Sprint") {
+        return "This looks deadline-driven, with audit, inspection, or diligence pressure shaping the work.";
+      }
+      if (offer === "Partner Insert") {
+        return "This looks like a bounded specialist workstream that supports a prime lead rather than a stand-alone full engagement.";
+      }
+      return "";
+    }
+
+    function produceBoundedNextStep() {
+      engine.notes.fit = classifyFit();
+      engine.notes.offer = inferOfferFromProfile();
+      engine.notes.bandHint = inferBandHint();
+      engine.notes.evidenceTierHint = inferEvidenceTierHint();
+      saveEngine();
+
+      const fit = engine.notes.fit;
+      const offer = engine.notes.offer;
+      const band = engine.notes.bandHint;
+      const tier = engine.notes.evidenceTierHint;
+
+      if (fit === "Out-of-Scope") {
+        engine.mode = "declined";
+        saveEngine();
         return {
           text:
-            "One sentence is enough. Use this format:\n" +
-            "“Helps [user] do [decision/action] for [condition/workflow] in [setting].”\n\n" +
-            "What’s yours?",
-          showCTA: true
+            `${engine.notes.declineReason} If the situation can be reframed into a bounded, phase-appropriate workstream with a clear decision-maker and truthful evidence expectations, it may be revisited.`,
+          showContact: true
         };
       }
 
-      state.intendedUse = intended;
-      state.step = 2;
-      saveState();
+      const explain = explainOffer(offer);
+      const missingText = buildMissingInputsText();
 
-      const kind = state.reg.modality || "AI/ML";
       return {
+        html: buildCompactSummaryHTML(),
         text:
-          `Thanks. Based on ${kind} and your intended use:\n\n` +
-          "Next best step is to lock three things before anyone writes code:\n" +
-          "1) Decision + risk framing (what harm occurs if it’s wrong, and what’s the fallback)\n" +
-          "2) Data plan (source, labeling method, inclusion/exclusion, leakage controls)\n" +
-          "3) Validation plan (targets, subgroup checks, drift monitoring, change-control triggers)\n\n" +
-          "What’s your biggest constraint: data volume, labeling quality, bias exposure, drift risk, or timeline?",
+          `${explain} ${missingText} Based on what you have shared, the next best step is one bounded DeiCell diagnostic path rather than a broad multi-track scope.`,
         showCTA: true,
         showContact: true,
         capture: true
       };
     }
 
-    // STEP 2+: constraint-driven guidance
-    const q = norm(qRaw);
-    const constraint =
-      hasAny(q, ["data","dataset","volume","small data"]) ? "data" :
-      hasAny(q, ["label","labeling","annotation"]) ? "labeling" :
-      hasAny(q, ["bias","subgroup","fairness"]) ? "bias" :
-      hasAny(q, ["drift","monitor","performance decay"]) ? "drift" :
-      hasAny(q, ["timeline","deadline","fast","quick"]) ? "timeline" :
-      null;
-
-    if (!constraint){
-      saveState();
-      return { text: "What’s the biggest constraint: data volume, labeling quality, bias exposure, drift risk, or timeline?", showCTA: true };
+    function maybeAdvanceToSummary() {
+      if (canProduceSummary()) {
+        return produceBoundedNextStep();
+      }
+      return null;
     }
 
-    const kind = state.reg.modality || "AI/ML";
-    const iu = state.intendedUse ? `Intended use: ${state.intendedUse}\n\n` : "";
+    function askField(field, opts) {
+      engine.mode = "collecting";
+      engine.askedField = field;
+      engine.lastAssistantType = "question";
+      saveEngine();
 
-    const guidance = {
-      data:
-        "Data volume: prioritize a defensible sampling plan, leakage checks, and confidence intervals. If N is small, tighten claims and define a human-in-the-loop fallback.",
-      labeling:
-        "Labeling: write a labeling SOP, set inter-rater agreement targets, define adjudication rules, and maintain a gold-standard subset. This is where most AI efforts quietly fail.",
-      bias:
-        "Bias/subgroup: predefine subgroups, minimum subgroup N targets, acceptable performance gaps, and mitigation steps. Decide this before model selection.",
-      drift:
-        "Drift: define monitoring metrics, alert thresholds, revalidation cadence, and what changes trigger regression testing under change control.",
-      timeline:
-        "Timeline: cut scope by tightening intended use and claims. Then build a smallest defensible evidence package: dataset provenance, one locked validation protocol, and a change-control plan."
-    }[constraint];
+      const prompt = FIELD_PROMPTS[field] || "Tell me a bit more.";
+      const example = EXAMPLES[field] ? `\n\n${EXAMPLES[field]}` : "";
 
-    saveState();
-    return {
-      text:
-        `${iu}${kind} focus: ${guidance}\n\n` +
-        "If you want, say “template” and I’ll show a one-page AI validation plan outline you can reuse for customers and auditors.",
-      showCTA: true,
-      showContact: true,
-      capture: true
-    };
-  }
-
-  reply = function reply(qRaw){
-    const info = extract(qRaw);
-    const q = info.q;
-
-    const emailMatch = qRaw && qRaw.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
-    if (emailMatch){
-      if (!document.getElementById("dc-capture")) addCapture();
-      return { text: `Noted ${emailMatch[0]}. Add a short message and hit Submit Info so I can route it correctly.`, showCTA: true, showContact: true };
+      return {
+        text: `${prompt}${example}`,
+        showCTA: opts && opts.showCTA
+      };
     }
 
-    const intent = scoreIntent(q);
+    function openingMessage() {
+      return (
+        `Hi, I'm ${ASSISTANT_NAME}. DeiCell is built for early-stage biotech and medtech teams facing manufacturing, audit, diligence, or QMS pressure.\n\n` +
+        `Describe what you're building, what is forcing action, and what feels unstable. I will help determine whether this looks like a bounded DeiCell fit and what the next step should be.\n\n` +
+        `You can also say contact if you want to reach a consultant directly.`
+      );
+    }
 
-    // Keep flows “sticky” unless clear pivot
-    const inRegFlow = (state.flow === "reg_triage");
-    const inAiFlow  = (state.flow === "ai_triage");
-    const allowStay = (intent === "more" || intent === "contact");
+    function handleAbout() {
+      return {
+        text:
+          `${KB.mission}\n\n${KB.promise}\n\n${KB.scope}\n\n${KB.exclusions}`,
+        showCTA: true,
+        showContact: true
+      };
+    }
 
-    if (inRegFlow && (intent === "reg" || allowStay)) return handleRegFlow(info);
-    if (inAiFlow  && (intent === "ai"  || allowStay)) return handleAiFlow(info, qRaw);
+    function handleContact() {
+      engine.entryMode = "contact";
+      saveEngine();
 
-    if (intent === "contact"){
-      if (!document.getElementById("dc-capture")) addCapture();
+      const note = canProduceSummary()
+        ? `I can also attach the intake context we already have.`
+        : `If you want, you can submit a short note and I will route it as a DeiCell intake.`;
+
       return {
         html: `
           <div>
-            If you want to talk with a consultant, the fastest path is booking directly or emailing.
+            The fastest path is a direct consult or a short intake handoff.
             <div class="dc-actions" style="margin-top:8px">
               <a class="dc-btn" href="${CONSULT_URL}" target="_blank" rel="noopener"
                  style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap;line-height:1;min-height:40px;padding:8px 14px;">
                 Book a consult
               </a>
             </div>
+            <div style="margin-top:8px">${esc(note)}</div>
             <div style="margin-top:8px">
               Email: <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a>
             </div>
@@ -700,125 +1346,321 @@ try {
       };
     }
 
-    if (intent === "about"){
-      state.flow = null; state.topic = "about"; state.step = 0; saveState();
-      return { text: `${KB2.identity}\n\n${KB2.promise}`, showCTA: true, showContact: true };
+    function handlePricing() {
+      engine.notes.fit = classifyFit() || "Conditional";
+      engine.notes.offer = inferOfferFromProfile();
+      engine.notes.bandHint = inferBandHint();
+      engine.notes.evidenceTierHint = inferEvidenceTierHint();
+      saveEngine();
+
+      return {
+        text:
+          `DeiCell pricing is packaged around bounded work types and effort bands, not open-ended hourly drift. Based on what I have so far, this points most toward ${engine.notes.offer || "a bounded engagement"} with a probable ${engine.notes.bandHint || "TBD"} band and ${engine.notes.evidenceTierHint || "TBD"} evidence expectation. To make that more defensible, I need the forcing function, manufacturing model, decision-maker, and active failure modes.`,
+        showCTA: true,
+        capture: true
+      };
     }
 
-    if (intent === "founder"){
-      state.flow = null; state.topic = "founder"; state.step = 0; saveState();
-      return { text: KB2.founder, showContact: true };
+    function handleReset() {
+      history = [];
+      save();
+      resetEngine();
+      render();
+      add("assistant", openingMessage());
+      return { silent: true };
     }
 
-    if (intent === "why"){
-      state.flow = null; state.topic = "why"; state.step = 0; saveState();
-      return { text: `${KB2.promise}\n\nTell me your stage and milestone pressure, and I’ll describe minimum viable compliance for your situation.`, showCTA: true };
-    }
+    function handleFreeformEntry(text) {
+      harvestFromText(text);
 
-    if (intent === "qms") return handleQmsFlow(info);
-    if (intent === "ai")  return handleAiFlow(info, qRaw);
-    if (intent === "reg") return handleRegFlow(info);
-
-    if (intent === "more"){
-      if (state.topic === "qms") return { text: "I can outline a 30-day implementation map. What milestone and timeline are you working against?", showCTA: true };
-      if (state.topic === "reg") return { text: "I can outline a focused evidence package and Pre-Sub question framework. Region and class first: US/EU and II/III.", showCTA: true };
-      if (state.topic === "ai")  return { text: "I can outline a validation plan template. What’s the intended use in one sentence?", showCTA: true };
-      return { text: "Tell me what you’re building and what deadline is forcing the decision, and I’ll give a specific path rather than generic advice." };
-    }
-
-    state.flow = null; state.topic = null; state.step = 0; saveState();
-    return { text: `I can help best if I know the domain. ${nextQuestionFor(null)}`, capture: false };
-  };
-
-} catch (e) {
-  console.error("dc-chat routing failed:", e);
-  reply = function(){
-    return { text: "Chat is temporarily unavailable. Please use Contact to reach us.", showCTA: true, showContact: true, capture: true };
-  };
-}
-
-// ------------------------------
-// Initial prompt
-// ------------------------------
-if (history.length) render();
-else add("assistant",`Hi, I'm ${ASSISTANT_NAME}. What can I help with today? Ask about QMS, Regulatory, or AI. You can also say contact to reach a consultant.`);
-
-// ------------------------------
-// Submit handler
-// ------------------------------
-if (form){
-  form.addEventListener("submit", (e)=>{
-    e.preventDefault();
-    const q = (input.value || "").trim();
-    if(!q) return;
-
-    add("user", q);
-    input.value = "";
-
-    let r = {};
-    try { r = reply(q) || {}; }
-    catch(err){ console.error("dc-chat reply error:", err); r = { text: "Something went wrong. Try again or say contact." }; }
-
-    if (r.text) add("assistant", r.text);
-    if (r.html) addHTML(r.html);
-    if (r.capture) addCapture();
-    if (r.showCTA) addCTA();
-    if (r.showContact) addContact();
-  });
-}
-
-function showWelcomePrompt(){
-  const existing = document.getElementById("dc-welcome");
-  if(existing) existing.remove();
-
-  const hasUser = (history || []).some(m => m.role === "user");
-  const msg = hasUser ? "Want to continue where we left off?" : "Looking for help with QMS, Regulatory, or AI?";
-
-  const actions = hasUser
-    ? `<div class="dc-actions">
-         <button class="dc-btn" type="button" data-act="continue">Continue</button>
-         <button class="dc-btn secondary" type="button" data-act="clear">Clear</button>
-         <button class="dc-btn secondary" type="button" data-act="close">Close</button>
-       </div>`
-    : `<div class="dc-actions">
-         <button class="dc-btn" type="button" data-act="yes">Yes</button>
-         <button class="dc-btn secondary" type="button" data-act="clear">Clear</button>
-         <button class="dc-btn secondary" type="button" data-act="close">Close</button>
-       </div>`;
-
-  const tmp = document.createElement("div");
-  tmp.innerHTML = bubble("assistant", `<div>${msg}</div>${actions}`);
-  const node = tmp.firstElementChild;
-  node.id = "dc-welcome";
-  log.appendChild(node);
-  log.scrollTop = log.scrollHeight;
-
-  node.querySelectorAll("[data-act]").forEach(b=>{
-    b.addEventListener("click", (e)=>{
-      const act = e.currentTarget.getAttribute("data-act");
-      if (act === "continue"){
-        node.remove();
-      } else if (act === "clear"){
-        history = []; save(); render();
-        add("assistant",`Great. Starting fresh. I'm ${ASSISTANT_NAME}. Ask a quick question or say contact if you want to reach a consultant.`);
-        showWelcomePrompt();
-      } else if (act === "yes"){
-        node.remove();
-        add("assistant","Happy to help! Is this about QMS, Regulatory, or AI? I can also connect you with a consultant.");
-      } else if (act === "close"){
-        close();
+      if (!engine.entryMode) {
+        engine.entryMode = inferEntryMode(text) || "general";
       }
-    });
-  });
-}
+
+      const fitDecline = detectDecline(text);
+      if (fitDecline) {
+        engine.notes.declineReason = fitDecline;
+        engine.mode = "declined";
+        saveEngine();
+        return {
+          text:
+            `${fitDecline} DeiCell works best when the scope can be bounded, truthful, and phase-appropriate.`,
+          showContact: true
+        };
+      }
+
+      const summary = maybeAdvanceToSummary();
+      if (summary) return summary;
+
+      let firstAsk = null;
+
+      if (!engine.profile.forcingFunction) firstAsk = "forcingFunction";
+      else if (!engine.profile.productType) firstAsk = "productType";
+      else if (!engine.profile.stage) firstAsk = "stage";
+      else if (!engine.profile.regulatoryExposure) firstAsk = "regulatoryExposure";
+      else if (!engine.profile.manufacturingModel) firstAsk = "manufacturingModel";
+      else if (!engine.profile.decisionMaker) firstAsk = "decisionMaker";
+      else if (!engine.profile.activeFailureModes) firstAsk = "activeFailureModes";
+      else firstAsk = nextMissingField();
+
+      return askField(firstAsk, { showCTA: engine.entryMode !== "general" });
+    }
+
+    function handleAskedFieldResponse(text) {
+      const wrote = writeAnswerToAskedField(text);
+      harvestFromText(text);
+
+      if (!wrote) {
+        engine.repeatCount += 1;
+        saveEngine();
+
+        if (looksLikeExampleRequest(text)) {
+          const ex = EXAMPLES[engine.askedField] || "A plain-language answer is fine.";
+          return {
+            text: ex
+          };
+        }
+
+        if (engine.repeatCount >= 2) {
+          const current = engine.askedField;
+          const next = nextMissingField();
+          engine.repeatCount = 0;
+
+          if (current && EXAMPLES[current]) {
+            return {
+              text:
+                `That looks a bit thin for that field. ${EXAMPLES[current]} If you are not sure, say not sure and I will keep moving.`
+            };
+          }
+
+          if (next && next !== current) {
+            return askField(next, {});
+          }
+        }
+
+        return {
+          text: `${FIELD_PROMPTS[engine.askedField]}`
+        };
+      }
+
+      engine.repeatCount = 0;
+      saveEngine();
+
+      const summary = maybeAdvanceToSummary();
+      if (summary) return summary;
+
+      const next = nextMissingField();
+      if (next) return askField(next, {});
+      return produceBoundedNextStep();
+    }
+
+    function generalElaboration(text) {
+      const t = norm(text);
+
+      if (includesAny(t, ["what do you need", "what info do you need", "what should i send"])) {
+        return {
+          text:
+            "The quickest path is: forcing function and deadline, product and stage, manufacturing model, decision-maker, top active failure modes, current system reality, and what baseline artifacts are available now.",
+          showCTA: true
+        };
+      }
+
+      if (includesAny(t, ["what do you help with", "what can you help with"])) {
+        return {
+          text:
+            "DeiCell is strongest where manufacturing and quality pressure are rising faster than internal structure: Phase 1 QMS boundaries, document control, training, CAPA, change control, audit readiness, and bounded remediation of failing core controls.",
+          showCTA: true
+        };
+      }
+
+      if (includesAny(t, ["what offer", "what engagement", "which path"])) {
+        return produceBoundedNextStep();
+      }
+
+      return null;
+    }
+
+    function reply(qRaw) {
+      const text = String(qRaw || "").trim();
+      const t = norm(text);
+
+      if (!text) return { text: "Please enter a message." };
+
+      if (looksLikeReset(t)) return handleReset();
+
+      const email = firstEmail(text);
+      if (email) {
+        engine.profile.email = email;
+        saveEngine();
+      }
+
+      if (looksLikeAbout(t)) return handleAbout();
+      if (looksLikeContact(t)) return handleContact();
+      if (looksLikePricing(t)) return handlePricing();
+
+      const decline = detectDecline(text);
+      if (decline) {
+        engine.notes.declineReason = decline;
+        engine.mode = "declined";
+        saveEngine();
+        return {
+          text:
+            `${decline} If this can be reframed into a bounded, truthful, phase-appropriate scope, I can still help determine the next step.`,
+          showContact: true
+        };
+      }
+
+      const elaboration = generalElaboration(text);
+      if (elaboration) return elaboration;
+
+      if (engine.mode === "collecting" && engine.askedField) {
+        return handleAskedFieldResponse(text);
+      }
+
+      if (looksLikeShortAffirmation(t) && engine.askedField) {
+        return {
+          text: FIELD_PROMPTS[engine.askedField]
+        };
+      }
+
+      return handleFreeformEntry(text);
+    }
+
+    // ------------------------------
+    // Initial prompt
+    // ------------------------------
+    if (history.length) render();
+    else add("assistant", openingMessage());
+
+    // ------------------------------
+    // Submit handler
+    // ------------------------------
+    if (form) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const q = (input.value || "").trim();
+        if (!q) return;
+
+        add("user", q);
+        input.value = "";
+
+        let r = {};
+        try {
+          r = reply(q) || {};
+        } catch (err) {
+          console.error("dc-chat reply error:", err);
+          r = {
+            text:
+              "Something went wrong. Please try again, or say contact to reach a consultant directly."
+          };
+        }
+
+        if (r.silent) return;
+        if (r.text) add("assistant", r.text);
+        if (r.html) addHTML(r.html);
+
+        if (r.capture) {
+          const prefill = {
+            email: engine.profile.email || "",
+            subject:
+              engine.notes.offer
+                ? `${engine.notes.offer} intake`
+                : "DeiCell intake",
+            note: canProduceSummary()
+              ? [
+                  engine.profile.forcingFunction
+                    ? `Forcing function: ${engine.profile.forcingFunction}`
+                    : "",
+                  engine.profile.deadline
+                    ? `Deadline: ${engine.profile.deadline}`
+                    : "",
+                  engine.profile.productType
+                    ? `Product / program: ${engine.profile.productType}`
+                    : "",
+                  engine.profile.manufacturingModel
+                    ? `Manufacturing model: ${engine.profile.manufacturingModel}`
+                    : "",
+                  engine.profile.activeFailureModes
+                    ? `Active failure modes: ${engine.profile.activeFailureModes}`
+                    : ""
+                ]
+                  .filter(Boolean)
+                  .join("\n")
+              : ""
+          };
+          addCapture(prefill);
+        }
+
+        if (r.showCTA) addCTA();
+        if (r.showContact) addContact();
+      });
+    }
+
+    function showWelcomePrompt() {
+      const existing = document.getElementById("dc-welcome");
+      if (existing) existing.remove();
+
+      const hasUser = (history || []).some((m) => m.role === "user");
+      const msg = hasUser
+        ? "Want to continue this DeiCell intake?"
+        : "Need help scoping a bounded quality or regulatory workstream?";
+
+      const actions = hasUser
+        ? `<div class="dc-actions">
+             <button class="dc-btn" type="button" data-act="continue">Continue</button>
+             <button class="dc-btn secondary" type="button" data-act="clear">Clear</button>
+             <button class="dc-btn secondary" type="button" data-act="close">Close</button>
+           </div>`
+        : `<div class="dc-actions">
+             <button class="dc-btn" type="button" data-act="yes">Yes</button>
+             <button class="dc-btn secondary" type="button" data-act="about">About</button>
+             <button class="dc-btn secondary" type="button" data-act="close">Close</button>
+           </div>`;
+
+      const tmp = document.createElement("div");
+      tmp.innerHTML = bubble("assistant", `<div>${msg}</div>${actions}`);
+      const node = tmp.firstElementChild;
+      node.id = "dc-welcome";
+      log.appendChild(node);
+      log.scrollTop = log.scrollHeight;
+
+      node.querySelectorAll("[data-act]").forEach((b) => {
+        b.addEventListener("click", (e) => {
+          const act = e.currentTarget.getAttribute("data-act");
+          if (act === "continue") {
+            node.remove();
+          } else if (act === "clear") {
+            history = [];
+            save();
+            resetEngine();
+            render();
+            add("assistant", openingMessage());
+            showWelcomePrompt();
+          } else if (act === "yes") {
+            node.remove();
+            add(
+              "assistant",
+              "Great. Tell me what you are building, what is forcing action, and what feels unstable right now."
+            );
+          } else if (act === "about") {
+            node.remove();
+            add(
+              "assistant",
+              `${KB.mission}\n\n${KB.promise}\n\nTell me the forcing function and I will help narrow the next step.`
+            );
+          } else if (act === "close") {
+            close();
+          }
+        });
+      });
+    }
 
     // Open chat on startup and show welcome prompt
     setOpen(true);
     setTimeout(showWelcomePrompt, 0);
   }
 
-  // Run when DOM is ready
-  if (document.readyState === "loading"){
+  if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", start);
   } else {
     start();
