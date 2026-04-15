@@ -28,11 +28,11 @@
     const FOUNDER_NAME = "Nathan Jones, Founder & Principal Consultant";
 
     const LS = {
-      hist: "dc_chat_hist_v21"
+      hist: "dc_chat_hist_v22"
     };
 
     const SS = {
-      engine: "dc_chat_engine_v21"
+      engine: "dc_chat_engine_v22"
     };
 
     const GOOGLE_FORM = {
@@ -91,7 +91,8 @@
         ">": "&gt;"
       }[c]));
 
-    const stripHtml = (s) => String(s || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const stripHtml = (s) =>
+      String(s || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
     const showToast = (msg) => {
       const t = document.getElementById("dc-toast");
@@ -117,22 +118,29 @@
       return m ? m[0] : null;
     };
 
+    const numberWordMap = {
+      zero: "0",
+      one: "1",
+      two: "2",
+      three: "3",
+      four: "4",
+      five: "5",
+      six: "6",
+      seven: "7",
+      eight: "8",
+      nine: "9",
+      ten: "10"
+    };
+
     const safeNumberWordToDigit = (s) => {
       const t = norm(s);
-      const map = {
-        one: "1",
-        two: "2",
-        three: "3",
-        four: "4",
-        five: "5",
-        six: "6",
-        seven: "7",
-        eight: "8",
-        nine: "9",
-        ten: "10"
-      };
-      return map[t] || s;
+      return numberWordMap[t] || s;
     };
+
+    const cleanSentence = (s) =>
+      String(s || "")
+        .replace(/\s+/g, " ")
+        .trim();
 
     // ------------------------------
     // Launcher button
@@ -246,7 +254,7 @@
     };
 
     // ------------------------------
-    // Components
+    // UI components
     // ------------------------------
     function addCTA() {
       if (document.getElementById("dc-inline-cta")) return;
@@ -303,7 +311,7 @@
             <textarea name="note" rows="3" placeholder="Message"
               style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
                      background:rgba(12,17,19,.85);color:#EAF2F5;line-height:1.3;
-                     height:96px;min-height:72px;max-height:180px;resize:vertical;">${escTextarea(
+                     height:110px;min-height:84px;max-height:220px;resize:vertical;">${escTextarea(
                        p.note || ""
                      )}</textarea>
           </div>
@@ -549,7 +557,6 @@
       entryMode: null,
       askedField: null,
       repeatCount: 0,
-      lastAssistantType: null,
       profile: {
         forcingFunction: "",
         deadline: "",
@@ -623,9 +630,9 @@
       activeFailureModes:
         "What is actively threatening delivery now? You can list the top 1 to 3 items.",
       currentReality:
-        "What exists today for core controls like document control, training, deviations, CAPA, and change control? A plain-language answer is enough.",
+        "What exists today for document control, training, deviations/nonconformance, CAPA, change control, supplier oversight, complaints, and internal audit? A plain-language answer is enough.",
       toolsConstraints:
-        "What tools or constraints matter here, such as shared drives, SharePoint, eQMS, Part 11 expectations, access limits, or migration issues?",
+        "What tools or constraints matter here, such as shared drives, SharePoint, eQMS, Part 11 expectations, access limits, migration issues, or approval bottlenecks?",
       phase1Done:
         "In one sentence, what would Phase 1 done mean for this engagement?",
       explicitDeferrals:
@@ -645,10 +652,12 @@
         'Example: "VP Operations owns scope approval; QA manager and program lead execute."',
       activeFailureModes:
         'Example: "Change churn, ad hoc training records, weak CAPA investigations."',
+      currentReality:
+        'Example: "Document control and training are ad hoc; deviations and CAPA are inconsistent; supplier oversight exists on paper only."',
       phase1Done:
-        'Example: "Core document control, training, deviations, CAPA, and change control are defined, owned, and being executed consistently for the current manufacturing model."',
+        'Example: "Core document control, training, deviations, CAPA, change control, and supplier oversight are defined, owned, and being executed consistently for the current manufacturing model."',
       availableArtifacts:
-        'Example: "Product summary, SOP list, audit date, current templates, and issue tracker available now."',
+        'Example: "Product summary, SOP list, audit date, current templates, manufacturing flow, and issue tracker available now."',
       productType:
         'Example: "Class II IVD assay platform for oncology biomarker detection."'
     };
@@ -688,11 +697,30 @@
       deadlinePressure(text) {
         const t = norm(text);
         if (
-          includesAny(t, ["2 weeks", "two weeks", "14 days", "10 days", "30 days", "next month", "45 days"])
+          includesAny(t, [
+            "2 weeks",
+            "two weeks",
+            "14 days",
+            "10 days",
+            "30 days",
+            "next month",
+            "45 days"
+          ])
         ) {
           return "high";
         }
-        if (includesAny(t, ["60 days", "90 days", "quarter", "two months", "3 months"])) return "medium";
+        if (
+          includesAny(t, [
+            "60 days",
+            "90 days",
+            "quarter",
+            "two months",
+            "3 months",
+            "three months"
+          ])
+        ) {
+          return "medium";
+        }
         return null;
       }
     };
@@ -755,8 +783,8 @@
 
     function inferStage(text) {
       const t = norm(text);
-      if (includesAny(t, ["pre-seed", "pre seed"])) return "pre-seed";
-      if (includesAny(t, ["seed"])) return "seed";
+      if (includesAny(t, ["pre-seed", "pre seed"])) return "Pre-Seed";
+      if (includesAny(t, ["seed"])) return "Seed";
       if (includesAny(t, ["series a"])) return "Series A";
       if (includesAny(t, ["series b"])) return "Series B";
       if (includesAny(t, ["preclinical", "r&d", "prototype", "bench"])) return "preclinical";
@@ -860,30 +888,123 @@
       return null;
     }
 
-    function inferOfferFromProfile() {
-      if (engine.entryMode === "audit_readiness") return "Audit Readiness Sprint";
-      if (engine.entryMode === "gap_repair") return "Gap Repair Sprint";
-      if (engine.entryMode === "partner_insert") return "Partner Insert";
-      if (engine.entryMode === "blueprint") return "Right-Sized GMP/QMS Blueprint";
+    function sanitizeProductType(value) {
+      const v = cleanSentence(value);
+      const n = norm(v);
 
+      if (
+        includesAny(n, [
+          "audit system",
+          "qms",
+          "quality system",
+          "audit readiness",
+          "compliance program",
+          "paper trail",
+          "documentation system",
+          "quality framework"
+        ])
+      ) {
+        return "";
+      }
+
+      return v;
+    }
+
+    function weakProductSignal() {
+      const p = norm(engine.profile.productType);
+      if (!p) return true;
+
+      if (
+        includesAny(p, [
+          "device that helps people",
+          "device",
+          "system",
+          "platform",
+          "program"
+        ]) &&
+        p.split(" ").length < 5
+      ) {
+        return true;
+      }
+
+      return false;
+    }
+
+    function missingMinimumPackageSignal() {
+      return !engine.profile.availableArtifacts || !engine.profile.currentReality;
+    }
+
+    function hasCoreControlCollapse() {
+      const combined = norm(
+        [
+          engine.profile.activeFailureModes,
+          engine.profile.currentReality,
+          engine.profile.regulatoryExposure
+        ].join(" ")
+      );
+
+      return includesAny(combined, [
+        "no quality system",
+        "no qms",
+        "no document control",
+        "no training",
+        "no capa",
+        "no change control",
+        "no deviation process",
+        "no nonconformance process",
+        "no supplier oversight",
+        "paper trail",
+        "paper only",
+        "ad hoc",
+        "uncontrolled",
+        "not controlled",
+        "none",
+        "weak capa",
+        "weak investigations"
+      ]);
+    }
+
+    function inferOfferFromProfile() {
       const ff = norm(engine.profile.forcingFunction);
       const af = norm(engine.profile.activeFailureModes);
       const cr = norm(engine.profile.currentReality);
+      const rx = norm(engine.profile.regulatoryExposure);
+      const mm = norm(engine.profile.manufacturingModel);
+      const ext = norm(engine.profile.externalInterfaces);
 
-      if (includesAny(ff, ["audit", "inspection", "diligence"])) return "Audit Readiness Sprint";
+      const collapsed = hasCoreControlCollapse();
+      const outsourcedPressure =
+        mm === "outsourced" ||
+        mm === "hybrid" ||
+        includesAny(ext, ["cdmo", "cmo", "supplier", "external lab"]);
+
+      if (engine.entryMode === "partner_insert") return "Partner Insert";
+      if (engine.entryMode === "blueprint") return "Right-Sized GMP/QMS Blueprint";
+
       if (
+        collapsed ||
         includesAny(af + " " + cr, [
-          "deviation",
-          "capa",
-          "doc control",
           "document control",
-          "training",
-          "change control",
-          "supplier",
-          "complaint"
+          "training gap",
+          "weak capa",
+          "weak investigations",
+          "change churn",
+          "supplier oversight gap",
+          "no quality system"
         ])
       ) {
         return "Gap Repair Sprint";
+      }
+
+      if (
+        includesAny(ff + " " + rx, ["audit", "inspection", "diligence"]) &&
+        !collapsed
+      ) {
+        return "Audit Readiness Sprint";
+      }
+
+      if (outsourcedPressure && !engine.profile.phase1Done) {
+        return "Right-Sized GMP/QMS Blueprint";
       }
 
       return "Right-Sized GMP/QMS Blueprint";
@@ -892,34 +1013,58 @@
     function inferBandHint() {
       const mm = norm(engine.profile.manufacturingModel);
       const ext = norm(engine.profile.externalInterfaces);
-      const dl = fitHelpers.deadlinePressure(engine.profile.deadline + " " + engine.profile.forcingFunction);
+      const dl = fitHelpers.deadlinePressure(
+        engine.profile.deadline + " " + engine.profile.forcingFunction
+      );
       const mis = norm(engine.profile.misalignment);
       const reality = norm(engine.profile.currentReality);
+      const active = norm(engine.profile.activeFailureModes);
       const tools = norm(engine.profile.toolsConstraints);
 
       let score = 0;
 
-      if (mm === "hybrid" || mm === "internal") score += 1;
-      if (includesAny(ext, ["2", "two", "multiple", "several", "3", "4", "5", "6", "7", "8"])) score += 1;
+      const multipleExternalInterfaces = includesAny(ext, [
+        "2",
+        "two",
+        "3",
+        "three",
+        "4",
+        "four",
+        "5",
+        "five",
+        "6",
+        "six",
+        "multiple",
+        "several"
+      ]);
+
+      if (mm === "hybrid" || mm === "internal" || mm === "outsourced") score += 1;
+      if (multipleExternalInterfaces) score += 2;
       if (dl === "high") score += 2;
       if (dl === "medium") score += 1;
+
       if (
-        includesAny(reality, [
+        includesAny(reality + " " + active, [
           "none",
           "ad hoc",
           "paper only",
           "inconsistent",
           "not controlled",
           "unusable",
-          "rework"
+          "rework",
+          "no quality system",
+          "weak capa",
+          "weak investigations"
         ])
       ) {
-        score += 1;
+        score += 2;
       }
+
       if (includesAny(mis, ["blocked", "misaligned", "disagreement", "contested"])) score += 1;
       if (includesAny(tools, ["part 11", "validated", "migration", "access"])) score += 1;
 
-      if (score >= 4) return "High";
+      if (multipleExternalInterfaces && score < 2) return "Medium";
+      if (score >= 5) return "High";
       if (score >= 2) return "Medium";
       return "Low";
     }
@@ -928,6 +1073,11 @@
       const p1 = norm(engine.profile.phase1Done);
       const ff = norm(engine.profile.forcingFunction);
       const cr = norm(engine.profile.currentReality);
+      const active = norm(engine.profile.activeFailureModes);
+
+      if (hasCoreControlCollapse()) {
+        return "Tier 2";
+      }
 
       if (
         includesAny(ff + " " + p1, [
@@ -943,7 +1093,10 @@
         return "Tier 2-3";
       }
 
-      if (includesAny(cr, ["controlled", "executed", "live process"])) return "Tier 2";
+      if (includesAny(cr + " " + active, ["controlled", "executed", "live process"])) {
+        return "Tier 2";
+      }
+
       return "Tier 1-2";
     }
 
@@ -967,13 +1120,17 @@
         (k) => !String(engine.profile[k] || "").trim()
       );
 
-      if (missingRequired.length === 0) {
-        if (!engine.profile.regulatoryExposure || !engine.profile.productType) return "Conditional";
-        return "Good-Fit";
+      if (missingRequired.length > 2) return null;
+
+      if (
+        missingRequired.length > 0 ||
+        weakProductSignal() ||
+        missingMinimumPackageSignal()
+      ) {
+        return "Conditional";
       }
 
-      if (missingRequired.length <= 2) return "Conditional";
-      return null;
+      return "Good-Fit";
     }
 
     function nextMissingField() {
@@ -994,28 +1151,6 @@
 
     function setProfileIfEmpty(key, value) {
       if (!engine.profile[key] && value) engine.profile[key] = value;
-    }
-
-    function sanitizeProductType(value) {
-      const v = String(value || "").trim();
-      const n = norm(v);
-
-      if (
-        includesAny(n, [
-          "audit system",
-          "qms",
-          "quality system",
-          "audit readiness",
-          "compliance program",
-          "paper trail",
-          "documentation system",
-          "quality framework"
-        ])
-      ) {
-        return "";
-      }
-
-      return v;
     }
 
     function harvestFromText(text) {
@@ -1049,7 +1184,7 @@
           "presub"
         ])
       ) {
-        setProfileIfEmpty("regulatoryExposure", t);
+        setProfileIfEmpty("regulatoryExposure", cleanSentence(t));
       }
 
       if (
@@ -1062,10 +1197,11 @@
           "document control",
           "supplier oversight",
           "complaint",
-          "paper trail"
+          "paper trail",
+          "no quality system"
         ])
       ) {
-        setProfileIfEmpty("activeFailureModes", t);
+        setProfileIfEmpty("activeFailureModes", cleanSentence(t));
       }
 
       if (
@@ -1082,7 +1218,7 @@
           "access"
         ])
       ) {
-        setProfileIfEmpty("toolsConstraints", t);
+        setProfileIfEmpty("toolsConstraints", cleanSentence(t));
       }
 
       if (
@@ -1115,13 +1251,13 @@
           "not included"
         ])
       ) {
-        setProfileIfEmpty("phase1Done", t);
+        setProfileIfEmpty("phase1Done", cleanSentence(t));
       }
 
       if (
         includesAny(n, ["ceo", "founder", "vp", "director", "head of quality", "operations lead", "decision maker"])
       ) {
-        setProfileIfEmpty("decisionMaker", t);
+        setProfileIfEmpty("decisionMaker", cleanSentence(t));
       }
 
       if (
@@ -1135,7 +1271,7 @@
           "fill-finish"
         ])
       ) {
-        setProfileIfEmpty("externalInterfaces", t);
+        setProfileIfEmpty("externalInterfaces", cleanSentence(t));
       }
 
       if (
@@ -1153,7 +1289,7 @@
           "three months"
         ])
       ) {
-        setProfileIfEmpty("deadline", t);
+        setProfileIfEmpty("deadline", cleanSentence(t));
       }
 
       if (
@@ -1166,10 +1302,11 @@
           "lose",
           "investor concern",
           "submission risk",
-          "shutdown"
+          "shutdown",
+          "warning letter"
         ])
       ) {
-        setProfileIfEmpty("consequence", t);
+        setProfileIfEmpty("consequence", cleanSentence(t));
       }
     }
 
@@ -1177,12 +1314,13 @@
       const field = engine.askedField;
       if (!field) return false;
 
-      const value = String(text || "").trim();
+      const value = cleanSentence(text);
       if (!value) return false;
 
       const tooThin =
         value.length < 2 ||
-        (looksLikeShortAffirmation(value) && !["manufacturingModel", "plannedManufacturingChange"].includes(field));
+        (looksLikeShortAffirmation(value) &&
+          !["manufacturingModel", "plannedManufacturingChange"].includes(field));
 
       if (tooThin) return false;
 
@@ -1227,6 +1365,9 @@
         p.manufacturingModel
           ? `<div><strong>Manufacturing model:</strong> ${esc(p.manufacturingModel)}</div>`
           : "",
+        p.plannedManufacturingChange
+          ? `<div><strong>Planned manufacturing change:</strong> ${esc(p.plannedManufacturingChange)}</div>`
+          : "",
         p.externalInterfaces
           ? `<div><strong>External interfaces:</strong> ${esc(p.externalInterfaces)}</div>`
           : "",
@@ -1269,7 +1410,7 @@
         return "This looks more like a bounded architecture and Phase 1 definition problem than a narrow remediation problem.";
       }
       if (offer === "Gap Repair Sprint") {
-        return "This looks like a specific control breakdown that is threatening delivery and needs a time-boxed repair.";
+        return "This looks like a specific control breakdown that is threatening delivery, audit continuity, or manufacturing continuity and needs a time-boxed repair.";
       }
       if (offer === "Audit Readiness Sprint") {
         return "This looks deadline-driven, with audit, inspection, or diligence pressure shaping the work.";
@@ -1353,7 +1494,6 @@
     function askField(field, opts) {
       engine.mode = "collecting";
       engine.askedField = field;
-      engine.lastAssistantType = "question";
       saveEngine();
 
       const prompt = FIELD_PROMPTS[field] || "Tell me a bit more.";
@@ -1420,7 +1560,7 @@
 
       return {
         text:
-          `DeiCell pricing is packaged around bounded work types and effort bands, not open-ended hourly drift. Based on what I have so far, this points most toward ${engine.notes.offer || "a bounded engagement"} with a probable ${engine.notes.bandHint || "TBD"} band and ${engine.notes.evidenceTierHint || "TBD"} evidence expectation. To make that more defensible, I need the forcing function, manufacturing model, decision-maker, and active failure modes.`,
+          `DeiCell pricing is packaged around bounded work types and effort bands, not open-ended hourly drift. Based on what I have so far, this points most toward ${engine.notes.offer || "a bounded engagement"} with a probable ${engine.notes.bandHint || "TBD"} band and ${engine.notes.evidenceTierHint || "TBD"} evidence expectation. To make that more defensible, I need the forcing function, manufacturing model, decision-maker, active failure modes, and current system reality.`,
         showCTA: true,
         capture: true
       };
@@ -1466,6 +1606,7 @@
       else if (!engine.profile.manufacturingModel) firstAsk = "manufacturingModel";
       else if (!engine.profile.decisionMaker) firstAsk = "decisionMaker";
       else if (!engine.profile.activeFailureModes) firstAsk = "activeFailureModes";
+      else if (!engine.profile.currentReality) firstAsk = "currentReality";
       else firstAsk = nextMissingField();
 
       return askField(firstAsk, { showCTA: engine.entryMode !== "general" });
@@ -1525,7 +1666,7 @@
       if (includesAny(t, ["what do you need", "what info do you need", "what should i send"])) {
         return {
           text:
-            "The quickest path is: forcing function and deadline, product and stage, manufacturing model, decision-maker, top active failure modes, current system reality, and what baseline artifacts are available now.",
+            "The quickest path is: forcing function and deadline, product and stage, manufacturing model, decision-maker, top active failure modes, current system reality, tools and constraints, and what baseline artifacts are available now.",
           showCTA: true
         };
       }
@@ -1533,7 +1674,7 @@
       if (includesAny(t, ["what do you help with", "what can you help with"])) {
         return {
           text:
-            "DeiCell is strongest where manufacturing and quality pressure are rising faster than internal structure: Phase 1 QMS boundaries, document control, training, CAPA, change control, audit readiness, and bounded remediation of failing core controls.",
+            "DeiCell is strongest where manufacturing and quality pressure are rising faster than internal structure: Phase 1 QMS boundaries, document control, training, CAPA, change control, supplier oversight, audit readiness, and bounded remediation of failing core controls.",
           showCTA: true
         };
       }
@@ -1546,7 +1687,7 @@
     }
 
     function reply(qRaw) {
-      const text = String(qRaw || "").trim();
+      const text = cleanSentence(qRaw);
       const t = norm(text);
 
       if (!text) return { text: "Please enter a message." };
@@ -1603,7 +1744,7 @@
     if (form) {
       form.addEventListener("submit", (e) => {
         e.preventDefault();
-        const q = (input.value || "").trim();
+        const q = cleanSentence(input.value || "");
         if (!q) return;
 
         add("user", q);
@@ -1700,6 +1841,7 @@
       });
     }
 
+    // Open chat on startup and show welcome prompt
     setOpen(true);
     setTimeout(showWelcomePrompt, 0);
   }
