@@ -28,14 +28,13 @@
     const FOUNDER_NAME = "Nathan Jones, Founder & Principal Consultant";
 
     const LS = {
-      hist: "dc_chat_hist_v20"
+      hist: "dc_chat_hist_v21"
     };
 
     const SS = {
-      engine: "dc_chat_engine_v20"
+      engine: "dc_chat_engine_v21"
     };
 
-    // Google Forms integration
     const GOOGLE_FORM = {
       action:
         "https://docs.google.com/forms/d/e/1FAIpQLSd-pxa0n6C1rZC0AExP8bc5VK-O6qDZWOyhHdqmy1ODVGUnNQ/formResponse",
@@ -48,7 +47,6 @@
       }
     };
 
-    // Apps Script endpoint
     const WEBAPP_URL =
       "https://script.google.com/macros/s/AKfycbzsFDJWMft9PSHPyAGoFs5CljdxHkxlIZMBHm71rLIgQjNdWK9PKdLWEZNbX6A1dZt0/exec";
 
@@ -78,7 +76,22 @@
         .replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))
         .replace(/\n/g, "<br>");
 
-    const stripHtml = (s) => String(s || "").replace(/<[^>]*>/g, " ");
+    const escAttr = (s) =>
+      String(s).replace(/[&<>"]/g, (c) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;"
+      }[c]));
+
+    const escTextarea = (s) =>
+      String(s).replace(/[&<>]/g, (c) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;"
+      }[c]));
+
+    const stripHtml = (s) => String(s || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
     const showToast = (msg) => {
       const t = document.getElementById("dc-toast");
@@ -88,47 +101,38 @@
       setTimeout(() => t.classList.remove("show"), 1400);
     };
 
-    const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
-
     const norm = (s) =>
       String(s || "")
         .toLowerCase()
         .replace(/\s+/g, " ")
         .trim();
 
-    const words = (s) =>
-      norm(s)
-        .split(" ")
-        .filter(Boolean);
-
     const includesAny = (text, list) => {
       const t = norm(text);
       return list.some((k) => t.includes(norm(k)));
     };
-
-    const sentenceCount = (s) =>
-      String(s || "")
-        .split(/[.!?]+/)
-        .map((x) => x.trim())
-        .filter(Boolean).length;
-
-    const isProbablyEmail = (s) =>
-      /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(String(s || ""));
 
     const firstEmail = (s) => {
       const m = String(s || "").match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
       return m ? m[0] : null;
     };
 
-    const pickFirstMatch = (text, list) => {
-      const t = norm(text);
-      for (let i = 0; i < list.length; i++) {
-        if (t.includes(norm(list[i]))) return list[i];
-      }
-      return null;
+    const safeNumberWordToDigit = (s) => {
+      const t = norm(s);
+      const map = {
+        one: "1",
+        two: "2",
+        three: "3",
+        four: "4",
+        five: "5",
+        six: "6",
+        seven: "7",
+        eight: "8",
+        nine: "9",
+        ten: "10"
+      };
+      return map[t] || s;
     };
-
-    const renderList = (items) => items.filter(Boolean).map((x) => `• ${x}`).join("<br>");
 
     // ------------------------------
     // Launcher button
@@ -245,10 +249,11 @@
     // Components
     // ------------------------------
     function addCTA() {
+      if (document.getElementById("dc-inline-cta")) return;
       const html = bubble(
         "assistant",
         `
-        <div class="dc-actions">
+        <div id="dc-inline-cta" class="dc-actions">
           <a class="dc-btn"
              href="${CONSULT_URL}"
              target="_blank"
@@ -263,10 +268,11 @@
     }
 
     function addContact() {
+      if (document.getElementById("dc-inline-contact")) return;
       const html = bubble(
         "assistant",
         `
-        <div>
+        <div id="dc-inline-contact">
           <div style="margin-bottom:6px"><strong>Contact</strong></div>
           <div>Email: <a href="mailto:${COMPANY_EMAIL}" style="color:var(--dc-link)">${COMPANY_EMAIL}</a></div>
           <div>Company: <a href="${COMPANY_LINKEDIN}" target="_blank" rel="noopener" style="color:#0aa2ff">LinkedIn</a></div>
@@ -286,18 +292,18 @@
         `
         <form id="dc-capture" style="display:grid;gap:6px;margin-top:6px">
           <div style="display:grid;gap:6px">
-            <input type="text" name="name" placeholder="Your name" required value="${esc(p.name || "")}"
+            <input type="text" name="name" placeholder="Your name" required value="${escAttr(p.name || "")}"
                    style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="email" name="email" placeholder="Email" required value="${esc(p.email || "")}"
+            <input type="email" name="email" placeholder="Email" required value="${escAttr(p.email || "")}"
                    style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="tel" name="phone" placeholder="Phone (optional)" value="${esc(p.phone || "")}"
+            <input type="tel" name="phone" placeholder="Phone (optional)" value="${escAttr(p.phone || "")}"
                    style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
-            <input type="text" name="subject" placeholder="Subject" value="${esc(p.subject || "DeiCell intake")}"
+            <input type="text" name="subject" placeholder="Subject" value="${escAttr(p.subject || "DeiCell intake")}"
                    style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(12,17,19,.85);color:#EAF2F5">
             <textarea name="note" rows="3" placeholder="Message"
               style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
                      background:rgba(12,17,19,.85);color:#EAF2F5;line-height:1.3;
-                     height:96px;min-height:72px;max-height:180px;resize:vertical;">${esc(
+                     height:96px;min-height:72px;max-height:180px;resize:vertical;">${escTextarea(
                        p.note || ""
                      )}</textarea>
           </div>
@@ -339,7 +345,6 @@
 
       let sent = false;
 
-      // Method A: Apps Script
       try {
         const body = new URLSearchParams();
         body.set("name", name);
@@ -365,7 +370,6 @@
         sent = false;
       }
 
-      // Method B: Google Form
       if (!sent) {
         try {
           const targetName = "dc-gform-target";
@@ -520,15 +524,32 @@
       "activeFailureModes"
     ];
 
+    const FIELD_LABELS = {
+      forcingFunction: "forcing function",
+      deadline: "deadline",
+      consequence: "consequence of delay",
+      productType: "product or program",
+      stage: "stage",
+      regulatoryExposure: "regulatory / audit exposure",
+      manufacturingModel: "manufacturing model",
+      plannedManufacturingChange: "next 6-month manufacturing change",
+      externalInterfaces: "external interfaces",
+      decisionMaker: "decision-maker",
+      activeFailureModes: "active failure modes",
+      currentReality: "current system reality",
+      toolsConstraints: "tools and constraints",
+      phase1Done: "Phase 1 definition",
+      explicitDeferrals: "explicit deferrals",
+      misalignment: "stakeholder misalignment",
+      availableArtifacts: "available artifacts"
+    };
+
     const stateDefault = {
-      mode: "triage", // triage, collecting, complete, declined
-      entryMode: null, // blueprint, gap_repair, audit_readiness, partner_insert, general, contact
+      mode: "triage",
+      entryMode: null,
       askedField: null,
       repeatCount: 0,
       lastAssistantType: null,
-      contactOffered: false,
-      ctaOffered: false,
-      captureOffered: false,
       profile: {
         forcingFunction: "",
         deadline: "",
@@ -586,7 +607,7 @@
       consequence:
         "What happens if that date slips?",
       productType:
-        "What are you building, in plain language?",
+        "What is the actual product, platform, or program in scope? If this is an audit-readiness situation, describe the underlying device, diagnostic, therapy, software, or manufacturing program rather than the quality workstream.",
       stage:
         "What stage are you in right now, such as pre-seed, Series A, preclinical, early clinical, or commercializing?",
       regulatoryExposure:
@@ -627,7 +648,9 @@
       phase1Done:
         'Example: "Core document control, training, deviations, CAPA, and change control are defined, owned, and being executed consistently for the current manufacturing model."',
       availableArtifacts:
-        'Example: "Product summary, SOP list, audit date, current templates, and issue tracker available now."'
+        'Example: "Product summary, SOP list, audit date, current templates, and issue tracker available now."',
+      productType:
+        'Example: "Class II IVD assay platform for oncology biomarker detection."'
     };
 
     const declineSignals = {
@@ -669,25 +692,10 @@
         ) {
           return "high";
         }
-        if (includesAny(t, ["60 days", "90 days", "quarter"])) return "medium";
+        if (includesAny(t, ["60 days", "90 days", "quarter", "two months", "3 months"])) return "medium";
         return null;
       }
     };
-
-    function lastUserMessage() {
-      for (let i = history.length - 1; i >= 0; i--) {
-        if (history[i].role === "user") return stripHtml(history[i].html);
-      }
-      return "";
-    }
-
-    function recentUserMessages(limit) {
-      const out = [];
-      for (let i = history.length - 1; i >= 0 && out.length < (limit || 4); i--) {
-        if (history[i].role === "user") out.push(stripHtml(history[i].html));
-      }
-      return out.reverse();
-    }
 
     function looksLikeShortAffirmation(text) {
       return includesAny(text, ["yes", "yeah", "yep", "correct", "right", "ok", "okay", "sure"]);
@@ -749,8 +757,8 @@
       const t = norm(text);
       if (includesAny(t, ["pre-seed", "pre seed"])) return "pre-seed";
       if (includesAny(t, ["seed"])) return "seed";
-      if (includesAny(t, ["series a"])) return "series a";
-      if (includesAny(t, ["series b"])) return "series b";
+      if (includesAny(t, ["series a"])) return "Series A";
+      if (includesAny(t, ["series b"])) return "Series B";
       if (includesAny(t, ["preclinical", "r&d", "prototype", "bench"])) return "preclinical";
       if (includesAny(t, ["clinical", "early clinical", "ide", "trial"])) return "clinical";
       if (includesAny(t, ["commercial", "postmarket", "launched"])) return "commercial/postmarket";
@@ -892,7 +900,7 @@
       let score = 0;
 
       if (mm === "hybrid" || mm === "internal") score += 1;
-      if (includesAny(ext, ["2", "two", "multiple", "several"])) score += 1;
+      if (includesAny(ext, ["2", "two", "multiple", "several", "3", "4", "5", "6", "7", "8"])) score += 1;
       if (dl === "high") score += 2;
       if (dl === "medium") score += 1;
       if (
@@ -988,6 +996,28 @@
       if (!engine.profile[key] && value) engine.profile[key] = value;
     }
 
+    function sanitizeProductType(value) {
+      const v = String(value || "").trim();
+      const n = norm(v);
+
+      if (
+        includesAny(n, [
+          "audit system",
+          "qms",
+          "quality system",
+          "audit readiness",
+          "compliance program",
+          "paper trail",
+          "documentation system",
+          "quality framework"
+        ])
+      ) {
+        return "";
+      }
+
+      return v;
+    }
+
     function harvestFromText(text) {
       const t = String(text || "");
       const n = norm(t);
@@ -1031,7 +1061,8 @@
           "doc control",
           "document control",
           "supplier oversight",
-          "complaint"
+          "complaint",
+          "paper trail"
         ])
       ) {
         setProfileIfEmpty("activeFailureModes", t);
@@ -1066,10 +1097,12 @@
           "therapeutic",
           "biologic",
           "drug product",
-          "drug substance"
+          "drug substance",
+          "platform"
         ])
       ) {
-        setProfileIfEmpty("productType", t);
+        const product = sanitizeProductType(t);
+        if (product) setProfileIfEmpty("productType", product);
       }
 
       if (
@@ -1114,7 +1147,10 @@
           "in 30 days",
           "in 45 days",
           "next month",
-          "this quarter"
+          "this quarter",
+          "two months",
+          "3 months",
+          "three months"
         ])
       ) {
         setProfileIfEmpty("deadline", t);
@@ -1129,7 +1165,8 @@
           "slip",
           "lose",
           "investor concern",
-          "submission risk"
+          "submission risk",
+          "shutdown"
         ])
       ) {
         setProfileIfEmpty("consequence", t);
@@ -1144,14 +1181,26 @@
       if (!value) return false;
 
       const tooThin =
-        value.length < 3 ||
-        (looksLikeShortAffirmation(value) && !["manufacturingModel"].includes(field));
+        value.length < 2 ||
+        (looksLikeShortAffirmation(value) && !["manufacturingModel", "plannedManufacturingChange"].includes(field));
 
       if (tooThin) return false;
 
       if (field === "manufacturingModel") {
         const inferred = inferManufacturingModel(value);
         engine.profile[field] = inferred || value;
+        return true;
+      }
+
+      if (field === "externalInterfaces") {
+        engine.profile[field] = safeNumberWordToDigit(value);
+        return true;
+      }
+
+      if (field === "productType") {
+        const cleaned = sanitizeProductType(value);
+        if (!cleaned) return false;
+        engine.profile[field] = cleaned;
         return true;
       }
 
@@ -1169,6 +1218,7 @@
       const rows = [
         p.forcingFunction ? `<div><strong>Forcing function:</strong> ${esc(p.forcingFunction)}</div>` : "",
         p.deadline ? `<div><strong>Deadline:</strong> ${esc(p.deadline)}</div>` : "",
+        p.consequence ? `<div><strong>Consequence of delay:</strong> ${esc(p.consequence)}</div>` : "",
         p.productType ? `<div><strong>Product / program:</strong> ${esc(p.productType)}</div>` : "",
         p.stage ? `<div><strong>Stage:</strong> ${esc(p.stage)}</div>` : "",
         p.regulatoryExposure
@@ -1177,11 +1227,20 @@
         p.manufacturingModel
           ? `<div><strong>Manufacturing model:</strong> ${esc(p.manufacturingModel)}</div>`
           : "",
+        p.externalInterfaces
+          ? `<div><strong>External interfaces:</strong> ${esc(p.externalInterfaces)}</div>`
+          : "",
         p.decisionMaker
           ? `<div><strong>Decision-maker:</strong> ${esc(p.decisionMaker)}</div>`
           : "",
         p.activeFailureModes
           ? `<div><strong>Active failure modes:</strong> ${esc(p.activeFailureModes)}</div>`
+          : "",
+        p.currentReality
+          ? `<div><strong>Current system reality:</strong> ${esc(p.currentReality)}</div>`
+          : "",
+        p.toolsConstraints
+          ? `<div><strong>Tools / constraints:</strong> ${esc(p.toolsConstraints)}</div>`
           : ""
       ]
         .filter(Boolean)
@@ -1202,29 +1261,7 @@
     function buildMissingInputsText() {
       const missing = FIELD_ORDER.filter((k) => !String(engine.profile[k] || "").trim());
       if (!missing.length) return "I have enough for a bounded first-pass conversation.";
-      const labels = missing.slice(0, 4).map((k) => {
-        const labelMap = {
-          forcingFunction: "forcing function",
-          deadline: "deadline",
-          consequence: "consequence of delay",
-          productType: "product or program",
-          stage: "stage",
-          regulatoryExposure: "regulatory / audit exposure",
-          manufacturingModel: "manufacturing model",
-          plannedManufacturingChange: "next 6-month manufacturing change",
-          externalInterfaces: "external interfaces",
-          decisionMaker: "decision-maker",
-          activeFailureModes: "active failure modes",
-          currentReality: "current system reality",
-          toolsConstraints: "tools and constraints",
-          phase1Done: "Phase 1 definition",
-          explicitDeferrals: "explicit deferrals",
-          misalignment: "stakeholder misalignment",
-          availableArtifacts: "available artifacts"
-        };
-        return labelMap[k] || k;
-      });
-      return "Still missing or thin: " + labels.join(", ") + ".";
+      return "Still missing or thin: " + missing.slice(0, 4).map((k) => FIELD_LABELS[k] || k).join(", ") + ".";
     }
 
     function explainOffer(offer) {
@@ -1243,6 +1280,39 @@
       return "";
     }
 
+    function buildCaptureNote() {
+      const p = engine.profile;
+      const lines = [
+        p.forcingFunction ? `Forcing function: ${p.forcingFunction}` : "",
+        p.deadline ? `Deadline: ${p.deadline}` : "",
+        p.consequence ? `Consequence of delay: ${p.consequence}` : "",
+        p.productType ? `Product / program: ${p.productType}` : "",
+        p.stage ? `Stage: ${p.stage}` : "",
+        p.regulatoryExposure ? `Regulatory / scrutiny: ${p.regulatoryExposure}` : "",
+        p.manufacturingModel ? `Manufacturing model: ${p.manufacturingModel}` : "",
+        p.plannedManufacturingChange
+          ? `Planned manufacturing change: ${p.plannedManufacturingChange}`
+          : "",
+        p.externalInterfaces ? `External interfaces: ${p.externalInterfaces}` : "",
+        p.decisionMaker ? `Decision-maker: ${p.decisionMaker}` : "",
+        p.activeFailureModes ? `Active failure modes: ${p.activeFailureModes}` : "",
+        p.currentReality ? `Current system reality: ${p.currentReality}` : "",
+        p.toolsConstraints ? `Tools / constraints: ${p.toolsConstraints}` : "",
+        p.phase1Done ? `Phase 1 done: ${p.phase1Done}` : "",
+        p.explicitDeferrals ? `Explicit deferrals: ${p.explicitDeferrals}` : "",
+        p.misalignment ? `Stakeholder misalignment: ${p.misalignment}` : "",
+        p.availableArtifacts ? `Available artifacts: ${p.availableArtifacts}` : "",
+        engine.notes.fit ? `Fit classification: ${engine.notes.fit}` : "",
+        engine.notes.offer ? `Likely engagement path: ${engine.notes.offer}` : "",
+        engine.notes.bandHint ? `Probable effort band: ${engine.notes.bandHint}` : "",
+        engine.notes.evidenceTierHint
+          ? `Probable evidence tier: ${engine.notes.evidenceTierHint}`
+          : ""
+      ];
+
+      return lines.filter(Boolean).join("\n");
+    }
+
     function produceBoundedNextStep() {
       engine.notes.fit = classifyFit();
       engine.notes.offer = inferOfferFromProfile();
@@ -1252,8 +1322,6 @@
 
       const fit = engine.notes.fit;
       const offer = engine.notes.offer;
-      const band = engine.notes.bandHint;
-      const tier = engine.notes.evidenceTierHint;
 
       if (fit === "Out-of-Scope") {
         engine.mode = "declined";
@@ -1265,13 +1333,10 @@
         };
       }
 
-      const explain = explainOffer(offer);
-      const missingText = buildMissingInputsText();
-
       return {
         html: buildCompactSummaryHTML(),
         text:
-          `${explain} ${missingText} Based on what you have shared, the next best step is one bounded DeiCell diagnostic path rather than a broad multi-track scope.`,
+          `${explainOffer(offer)} ${buildMissingInputsText()} Based on what you have shared, the next best step is one bounded DeiCell diagnostic path rather than a broad multi-track scope.`,
         showCTA: true,
         showContact: true,
         capture: true
@@ -1322,8 +1387,8 @@
       saveEngine();
 
       const note = canProduceSummary()
-        ? `I can also attach the intake context we already have.`
-        : `If you want, you can submit a short note and I will route it as a DeiCell intake.`;
+        ? "I can also attach the intake context we already have."
+        : "If you want, you can submit a short note and I will route it as a DeiCell intake.";
 
       return {
         html: `
@@ -1429,7 +1494,7 @@
           if (current && EXAMPLES[current]) {
             return {
               text:
-                `That looks a bit thin for that field. ${EXAMPLES[current]} If you are not sure, say not sure and I will keep moving.`
+                `That looks a bit thin for ${FIELD_LABELS[current] || "that field"}. ${EXAMPLES[current]} If you are not sure, say not sure and I will keep moving.`
             };
           }
 
@@ -1439,7 +1504,7 @@
         }
 
         return {
-          text: `${FIELD_PROMPTS[engine.askedField]}`
+          text: FIELD_PROMPTS[engine.askedField]
         };
       }
 
@@ -1566,27 +1631,7 @@
               engine.notes.offer
                 ? `${engine.notes.offer} intake`
                 : "DeiCell intake",
-            note: canProduceSummary()
-              ? [
-                  engine.profile.forcingFunction
-                    ? `Forcing function: ${engine.profile.forcingFunction}`
-                    : "",
-                  engine.profile.deadline
-                    ? `Deadline: ${engine.profile.deadline}`
-                    : "",
-                  engine.profile.productType
-                    ? `Product / program: ${engine.profile.productType}`
-                    : "",
-                  engine.profile.manufacturingModel
-                    ? `Manufacturing model: ${engine.profile.manufacturingModel}`
-                    : "",
-                  engine.profile.activeFailureModes
-                    ? `Active failure modes: ${engine.profile.activeFailureModes}`
-                    : ""
-                ]
-                  .filter(Boolean)
-                  .join("\n")
-              : ""
+            note: buildCaptureNote()
           };
           addCapture(prefill);
         }
@@ -1655,7 +1700,6 @@
       });
     }
 
-    // Open chat on startup and show welcome prompt
     setOpen(true);
     setTimeout(showWelcomePrompt, 0);
   }
